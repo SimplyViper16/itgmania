@@ -275,14 +275,12 @@ int MovieDecoder_FFMpeg::DecodePacket( float fTargetTime )
 			GetTimestamp() + GetFrameDuration() < fTargetTime &&
 			(m_pStreamCodec->frame_number % 2) == 0;
 
-		int iGotFrame;
+		int frameRes;
 		int len;
 		/* Hack: we need to send size = 0 to flush frames at the end, but we have
 		 * to give it a buffer to read from since it tries to read anyway. */
 		m_Packet.data = m_Packet.size ? m_Packet.data : nullptr;
 		len = m_Packet.size;
-		avcodec::avcodec_send_packet(m_pStreamCodec, &m_Packet);
-		iGotFrame = !avcodec::avcodec_receive_frame(m_pStreamCodec, m_Frame);
 
 		if( len < 0 )
 		{
@@ -290,14 +288,23 @@ int MovieDecoder_FFMpeg::DecodePacket( float fTargetTime )
 			return -1; // XXX
 		}
 
-		m_iCurrentPacketOffset += len;
+		avcodec::avcodec_send_packet(m_pStreamCodec, &m_Packet);
+		frameRes = avcodec::avcodec_receive_frame(m_pStreamCodec, m_Frame);
 
-		if( !iGotFrame )
-		{
-			if( m_iEOF == 1 )
-				m_iEOF = 2;
+		if (frameRes != 0) {
+			if (frameRes == AVERROR_EOF) m_iEOF = 2;
+
 			continue;
 		}
+
+		m_iCurrentPacketOffset += len;
+
+		//if( !iGotFrame )
+		//{
+		//	if( m_iEOF == 1 )
+		//		m_iEOF = 2;
+		//	continue;
+		//}
 
 		if( m_Frame->pkt_dts != AV_NOPTS_VALUE )
 		{

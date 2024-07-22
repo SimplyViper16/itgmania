@@ -17,8 +17,12 @@
 #include <windows.h>
 #endif
 
+#include <thread>
 
 static Preference<bool> g_bMovieTextureDirectUpdates( "MovieTextureDirectUpdates", true );
+
+// Add a member variable to indicate the decoding thread status
+std::atomic<bool> m_DecodingRunning{ false };
 
 MovieTexture_Generic::MovieTexture_Generic( RageTextureID ID, MovieDecoder *pDecoder ):
 	RageMovieTexture( ID )
@@ -75,6 +79,8 @@ RString MovieTexture_Generic::Init()
 
 MovieTexture_Generic::~MovieTexture_Generic()
 {
+	m_DecodingRunning = false;
+
 	if( m_pDecoder )
 		m_pDecoder->Close();
 
@@ -371,6 +377,12 @@ float MovieTexture_Generic::CheckFrameTime()
 
 	const float fOffset = (m_pDecoder->GetTimestamp() - m_fClock) / m_fRate;
 
+	// Dynamic threshold adjustment
+	static const float MinFrameSkipThreshold = 0.1f;
+	static const float MaxFrameSkipThreshold = 0.5f;
+	static float currentThreshold = MaxFrameSkipThreshold;
+
+
 	/* If we're ahead, we're decoding too fast; delay. */
 	if( fOffset > 0.00001f )
 	{
@@ -380,6 +392,7 @@ float MovieTexture_Generic::CheckFrameTime()
 			LOG->Trace( "stopped skipping frames" );
 			m_bFrameSkipMode = false;
 		}
+		currentThreshold = std::max(currentThreshold - 0.01f, MinFrameSkipThreshold);
 		return fOffset;
 	}
 
@@ -400,47 +413,76 @@ float MovieTexture_Generic::CheckFrameTime()
 	 * it's better to just stay in frame skip mode than to enter and exit it
 	 * constantly, but we don't want to do that due to a single timing glitch.
 	 */
-	const float FrameSkipThreshold = 0.5f;
+	 /*const float FrameSkipThreshold = 0.5f;*/
 
-	if( -fOffset >= FrameSkipThreshold && !m_bFrameSkipMode )
+	if (-fOffset >= currentThreshold && !m_bFrameSkipMode)
 	{
 		LOG->Trace( "(%s) Time is %f, and the movie is at %f.  Entering frame skip mode.",
 			GetID().filename.c_str(), m_fClock, m_pDecoder->GetTimestamp() );
 		m_bFrameSkipMode = true;
+		currentThreshold = std::min(currentThreshold + 0.01f, MaxFrameSkipThreshold);
 	}
 
 	return 0;
 }
 
+void MovieTexture_Generic::DecodeLoop()
+{
+	while (m_DecodingRunning)
+	{
+		if (!m_pDecoder) {
+			m_DecodingRunning = false;
+			break;
+		}
+
+		if( m_ImageWaiting == FRAME_NONE )
+		{
+			if( !DecodeFrame() )
+			{
+				break;
+			}
+			m_ImageWaiting = FRAME_DECODED;
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+}
+
 /* Decode data. */
-void MovieTexture_Generic::DecodeSeconds( float fSeconds )
+void MovieTexture_Generic::DecodeSeconds(float fSeconds)
 {
 	m_fClock += fSeconds * m_fRate;
+
+	// first run
+	if (!m_DecodingRunning) {
+		m_DecodingRunning = true;
+		std::thread decodeThread(&MovieTexture_Generic::DecodeLoop, this);
+		decodeThread.detach(); // Detach the thread to run independently
+	}
 
 	/* We might need to decode more than one frame per update.  However, there
 	 * have been bugs in ffmpeg that cause it to not handle EOF properly, which
 	 * could make this never return, so let's play it safe. */
-	int iMax = 4;
-	while( --iMax )
-	{
-		/* If we don't have a frame decoded, decode one. */
-		if( m_ImageWaiting == FRAME_NONE )
-		{
-			if( !DecodeFrame() )
-				break;
+	 //int iMax = 4;
+	 //while( --iMax )
+	 //{
+	 //	/* If we don't have a frame decoded, decode one. */
+	 //	if( m_ImageWaiting == FRAME_NONE )
+	 //	{
+	 //		if( !DecodeFrame() )
+	 //			break;
 
-			m_ImageWaiting = FRAME_DECODED;
-		}
+	 //		m_ImageWaiting = FRAME_DECODED;
+	 //	}
 
 		/* If we have a frame decoded, see if it's time to display it. */
 		float fTime = CheckFrameTime();
-		if ( fTime <= 0 )
+	if (fTime <= 0 && m_ImageWaiting == FRAME_DECODED)
 		{
 			UpdateFrame();
 			m_ImageWaiting = FRAME_NONE;
 		}
-		return;
-	}
+	//	return;
+	//}
 
 	LOG->MapLog( "movie_looping", "MovieTexture_Generic::Update looping" );
 }
@@ -528,6 +570,7 @@ std::uintptr_t MovieTexture_Generic::GetTexHandle() const
 
 	return m_uTexHandle;
 }
+
 
 /*
  * (c) 2003-2005 Glenn Maynard

@@ -84,6 +84,9 @@ class MovieTexture_Generic: public RageMovieTexture
 public:
 	MovieTexture_Generic( RageTextureID ID, MovieDecoder *pDecoder );
 	virtual ~MovieTexture_Generic();
+
+	void DecodeLoop();
+
 	RString Init();
 
 	/* only called by RageTextureManager::InvalidateTextures */
