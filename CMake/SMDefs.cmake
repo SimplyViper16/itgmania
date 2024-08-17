@@ -1,9 +1,9 @@
 # Set up version numbers according to the new scheme.
 set(SM_VERSION_MAJOR 0)
-set(SM_VERSION_MINOR 9)
+set(SM_VERSION_MINOR 10)
 set(SM_VERSION_PATCH 0)
 set(SM_VERSION_TRADITIONAL
-    "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}")
+    "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}-beta-testing")
 
 execute_process(COMMAND git rev-parse --short HEAD
                 WORKING_DIRECTORY "${SM_ROOT_DIR}"
@@ -19,18 +19,18 @@ if(NOT (ret STREQUAL "0"))
   set(SM_VERSION_GIT_HASH "UNKNOWN")
   if(WITH_FULL_RELEASE)
     set(SM_VERSION_GIT
-        "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}")
+        "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}-beta-testing")
   else()
     set(SM_VERSION_GIT
-        "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}-${SM_VERSION_GIT_HASH}")
+        "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}-beta-testing-${SM_VERSION_GIT_HASH}")
   endif()
 else()
   if(WITH_FULL_RELEASE)
     set(SM_VERSION_GIT
-        "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}")
+        "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}-beta-testing")
   else()
     set(SM_VERSION_GIT
-        "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}-git-${SM_VERSION_GIT_HASH}")
+        "${SM_VERSION_MAJOR}.${SM_VERSION_MINOR}.${SM_VERSION_PATCH}-beta-testing-git-${SM_VERSION_GIT_HASH}")
   endif()
 endif()
 
