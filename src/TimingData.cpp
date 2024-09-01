@@ -124,18 +124,8 @@ void TimingData::PrepareLookup()
 
 void TimingData::ReleaseLookup()
 {
-	// According to The C++ Programming Language 3rd Ed., decreasing the size
-	// of a vector doesn't actually free the memory it has allocated.  So this
-	// small trick is required to actually free the memory. -Kyz
-#define CLEAR_LOOKUP(lookup) \
-	{ \
-		lookup.clear(); \
-		beat_start_lookup_t tmp= lookup; \
-		lookup.swap(tmp); \
-	}
-	CLEAR_LOOKUP(m_beat_start_lookup);
-	CLEAR_LOOKUP(m_time_start_lookup);
-#undef CLEAR_LOOKUP
+	m_beat_start_lookup = beat_start_lookup_t();
+	m_time_start_lookup = beat_start_lookup_t();
 }
 
 RString SegInfoStr(const std::vector<TimingSegment*>& segs, unsigned int index, const RString& name)
@@ -288,7 +278,6 @@ void TimingData::ShiftRange(int start_row, int end_row,
 					segs[i]->SetRow(dest_row);
 				}
 			}
-#define ERASE_SEG(s) if(segs.size() > 1) { EraseSegment(segs, s, segs[s]); --i; --last_affected; erased= true; }
 			for(std::size_t i= first_affected; i <= static_cast<std::size_t>(last_affected) && i < segs.size(); ++i)
 			{
 				bool erased= false;
@@ -300,7 +289,13 @@ void TimingData::ShiftRange(int start_row, int end_row,
 					// segments that were run over. -Kyz
 					while(seg_row >= next_row && seg_row < start_row)
 					{
-						ERASE_SEG(i);
+						if(segs.size() > 1)
+						{
+							EraseSegment(segs, i, segs[i]);
+							--i;
+							--last_affected;
+							erased = true;
+						}
 						if(i < segs.size())
 						{
 							seg_row= segs[i]->GetRow();
@@ -316,11 +311,16 @@ void TimingData::ShiftRange(int start_row, int end_row,
 					int prev_row= segs[i-1]->GetRow();
 					if(prev_row >= seg_row)
 					{
-						ERASE_SEG(i);
+						if(segs.size() > 1)
+						{
+							EraseSegment(segs, i, segs[i]);
+							--i;
+							--last_affected;
+							erased = true;
+						}
 					}
 				}
 			}
-#undef ERASE_SEG
 		}
 	}
 }
@@ -819,21 +819,17 @@ void TimingData::GetBeatInternal(GetBeatStarts& start, GetBeatArgs& args,
 	unsigned int curr_segment= start.bpm+start.warp+start.stop+start.delay;
 
 	float bps= GetBPMAtRow(start.last_row) / 60.0f;
-#define INC_INDEX(index) ++curr_segment; ++index;
-
 	while(curr_segment < max_segment)
 	{
 		int event_row= INT_MAX;
 		int event_type= NOT_FOUND;
-		FindEvent(event_row, event_type, start, 0, false, bpms, warps, stops,
-			delays);
+		FindEvent(event_row, event_type, start, 0, false, bpms, warps, stops, delays);
 		if(event_type == NOT_FOUND)
 		{
 			break;
 		}
-		float time_to_next_event= start.is_warping ? 0 :
-			NoteRowToBeat(event_row - start.last_row) / bps;
-		float next_event_time= start.last_time + time_to_next_event;
+		float time_to_next_event = start.is_warping ? 0 : NoteRowToBeat(event_row - start.last_row) / bps;
+		float next_event_time = start.last_time + time_to_next_event;
 		if(args.elapsed_time < next_event_time)
 		{
 			break;
@@ -846,7 +842,8 @@ void TimingData::GetBeatInternal(GetBeatStarts& start, GetBeatArgs& args,
 				break;
 			case FOUND_BPM_CHANGE:
 				bps= ToBPM(bpms[start.bpm])->GetBPS();
-				INC_INDEX(start.bpm);
+				++start.bpm;
+				++curr_segment;
 				break;
 			case FOUND_DELAY:
 			case FOUND_STOP_DELAY:
@@ -863,7 +860,8 @@ void TimingData::GetBeatInternal(GetBeatStarts& start, GetBeatArgs& args,
 						return;
 					}
 					start.last_time= next_event_time;
-					INC_INDEX(start.delay);
+					++start.delay;
+					++curr_segment;
 					if(event_type == FOUND_DELAY)
 					{
 						break;
@@ -884,7 +882,8 @@ void TimingData::GetBeatInternal(GetBeatStarts& start, GetBeatArgs& args,
 						return;
 					}
 					start.last_time= next_event_time;
-					INC_INDEX(start.stop);
+					++start.stop;
+					++curr_segment;
 					break;
 				}
 			case FOUND_WARP:
@@ -898,13 +897,13 @@ void TimingData::GetBeatInternal(GetBeatStarts& start, GetBeatArgs& args,
 					}
 					args.warp_begin_out= event_row;
 					args.warp_dest_out= start.warp_destination;
-					INC_INDEX(start.warp);
+					++start.warp;
+					++curr_segment;
 					break;
 				}
 		}
 		start.last_row= event_row;
 	}
-#undef INC_INDEX
 	if(args.elapsed_time == FLT_MAX)
 	{
 		args.elapsed_time= start.last_time;
@@ -937,17 +936,14 @@ float TimingData::GetElapsedTimeInternal(GetBeatStarts& start, float beat,
 	unsigned int curr_segment= start.bpm+start.warp+start.stop+start.delay;
 
 	float bps= GetBPMAtRow(start.last_row) / 60.0f;
-#define INC_INDEX(index) ++curr_segment; ++index;
 	bool find_marker= beat < FLT_MAX;
 
 	while(curr_segment < max_segment)
 	{
 		int event_row= INT_MAX;
 		int event_type= NOT_FOUND;
-		FindEvent(event_row, event_type, start, beat, find_marker, bpms, warps, stops,
-			delays);
-		float time_to_next_event= start.is_warping ? 0 :
-			NoteRowToBeat(event_row - start.last_row) / bps;
+		FindEvent(event_row, event_type, start, beat, find_marker, bpms, warps, stops, delays);
+		float time_to_next_event= start.is_warping ? 0 : NoteRowToBeat(event_row - start.last_row) / bps;
 		float next_event_time= start.last_time + time_to_next_event;
 		start.last_time= next_event_time;
 		switch(event_type)
@@ -957,20 +953,23 @@ float TimingData::GetElapsedTimeInternal(GetBeatStarts& start, float beat,
 				break;
 			case FOUND_BPM_CHANGE:
 				bps= ToBPM(bpms[start.bpm])->GetBPS();
-				INC_INDEX(start.bpm);
+				++start.bpm;
+				++curr_segment;
 				break;
 			case FOUND_STOP:
 			case FOUND_STOP_DELAY:
 				time_to_next_event= ToStop(stops[start.stop])->GetPause();
 				next_event_time= start.last_time + time_to_next_event;
 				start.last_time= next_event_time;
-				INC_INDEX(start.stop);
+				++start.stop;
+				++curr_segment;
 				break;
 			case FOUND_DELAY:
 				time_to_next_event= ToDelay(delays[start.delay])->GetPause();
 				next_event_time= start.last_time + time_to_next_event;
 				start.last_time= next_event_time;
-				INC_INDEX(start.delay);
+				++start.delay;
+				++curr_segment;
 				break;
 			case FOUND_MARKER:
 				return start.last_time;
@@ -983,13 +982,13 @@ float TimingData::GetElapsedTimeInternal(GetBeatStarts& start, float beat,
 					{
 						start.warp_destination= warp_sum;
 					}
-					INC_INDEX(start.warp);
+					++start.warp;
+					++curr_segment;
 					break;
 				}
 		}
 		start.last_row= event_row;
 	}
-#undef INC_INDEX
 	return start.last_time;
 }
 
@@ -1343,46 +1342,201 @@ void TimingSegmentSetToLuaTable(TimingData* td, TimingSegmentType tst, lua_State
 class LunaTimingData: public Luna<TimingData>
 {
 public:
-	static int HasStops( T* p, lua_State *L )		{ lua_pushboolean(L, p->HasStops()); return 1; }
-	static int HasDelays( T* p, lua_State *L )		{ lua_pushboolean(L, p->HasDelays()); return 1; }
-	static int HasBPMChanges( T* p, lua_State *L )		{ lua_pushboolean(L, p->HasBpmChanges()); return 1; }
-	static int HasWarps( T* p, lua_State *L )		{ lua_pushboolean(L, p->HasWarps()); return 1; }
-	static int HasFakes( T* p, lua_State *L )		{ lua_pushboolean(L, p->HasFakes()); return 1; }
-	static int HasSpeedChanges( T* p, lua_State *L )	{ lua_pushboolean(L, p->HasSpeedChanges()); return 1; }
-	static int HasScrollChanges( T* p, lua_State *L )	{ lua_pushboolean(L, p->HasScrollChanges()); return 1; }
-#define GET_FUNCTION(get_name, segment_name) \
-	static int get_name(T* p, lua_State* L) \
-	{ \
-		if(lua_toboolean(L, 1)) \
-		{ \
-			TimingSegmentSetToLuaTable(p, segment_name, L); \
-		} \
-		else \
-		{ \
-			LuaHelpers::CreateTableFromArray(p->ToVectorString(segment_name), L); \
-		} \
-		return 1; \
+
+	static int HasStops(T* p, lua_State* L)
+	{
+		lua_pushboolean(L, p->HasStops());
+		return 1;
 	}
 
-	GET_FUNCTION(GetWarps, SEGMENT_WARP);
-	GET_FUNCTION(GetFakes, SEGMENT_FAKE);
-	GET_FUNCTION(GetScrolls, SEGMENT_SCROLL);
-	GET_FUNCTION(GetSpeeds, SEGMENT_SPEED);
-	GET_FUNCTION(GetTimeSignatures, SEGMENT_TIME_SIG);
-	GET_FUNCTION(GetCombos, SEGMENT_COMBO);
-	GET_FUNCTION(GetTickcounts, SEGMENT_TICKCOUNT);
-	GET_FUNCTION(GetStops, SEGMENT_STOP);
-	GET_FUNCTION(GetDelays, SEGMENT_DELAY);
-	GET_FUNCTION(GetLabels, SEGMENT_LABEL);
-	GET_FUNCTION(GetBPMsAndTimes, SEGMENT_BPM);
-#undef GET_FUNCTION
-	static int GetBPMs( T* p, lua_State *L )
+	static int HasDelays(T* p, lua_State* L)
+	{
+		lua_pushboolean(L, p->HasDelays());
+		return 1;
+	}
+
+	static int HasBPMChanges(T* p, lua_State* L)
+	{
+		lua_pushboolean(L, p->HasBpmChanges());
+		return 1;
+	}
+
+	static int HasWarps(T* p, lua_State* L)
+	{
+		lua_pushboolean(L, p->HasWarps());
+		return 1;
+	}
+
+	static int HasFakes(T* p, lua_State* L)
+	{
+		lua_pushboolean(L, p->HasFakes());
+		return 1;
+	}
+
+	static int HasSpeedChanges(T* p, lua_State* L)
+	{
+		lua_pushboolean(L, p->HasSpeedChanges());
+		return 1;
+	}
+
+	static int HasScrollChanges(T* p, lua_State* L)
+	{
+		lua_pushboolean(L, p->HasScrollChanges());
+		return 1;
+	}
+
+	static int GetWarps(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_WARP, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_WARP), L);
+		}
+		return 1;
+	}
+
+	static int GetFakes(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_FAKE, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_FAKE), L);
+		}
+		return 1;
+	}
+
+	static int GetScrolls(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_SCROLL, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_SCROLL), L);
+		}
+		return 1;
+	}
+
+	static int GetSpeeds(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_SPEED, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_SPEED), L);
+		}
+		return 1;
+	}
+
+	static int GetTimeSignatures(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_TIME_SIG, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_TIME_SIG), L);
+		}
+		return 1;
+	}
+
+	static int GetCombos(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_COMBO, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_COMBO), L);
+		}
+		return 1;
+	}
+
+	static int GetTickcounts(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_TICKCOUNT, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_TICKCOUNT), L);
+		}
+		return 1;
+	}
+
+	static int GetStops(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_STOP, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_STOP), L);
+		}
+		return 1;
+	}
+
+	static int GetDelays(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_DELAY, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_DELAY), L);
+		}
+		return 1;
+	}
+
+	static int GetLabels(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_LABEL, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_LABEL), L);
+		}
+		return 1;
+	}
+
+	static int GetBPMsAndTimes(T* p, lua_State* L)
+	{
+		if (lua_toboolean(L, 1))
+		{
+			TimingSegmentSetToLuaTable(p, SEGMENT_BPM, L);
+		}
+		else
+		{
+			LuaHelpers::CreateTableFromArray(p->ToVectorString(SEGMENT_BPM), L);
+		}
+		return 1;
+	}
+
+	static int GetBPMs(T* p, lua_State* L)
 	{
 		std::vector<float> vBPMs;
 		const std::vector<TimingSegment*> &bpms = p->GetTimingSegments(SEGMENT_BPM);
 
-		for (unsigned i = 0; i < bpms.size(); i++)
-			vBPMs.push_back( ToBPM(bpms[i])->GetBPM() );
+		for (TimingSegment* bpm : bpms)
+		{
+			vBPMs.push_back( ToBPM(bpm)->GetBPM() );
+		}
 
 		LuaHelpers::CreateTableFromArray(vBPMs, L);
 		return 1;

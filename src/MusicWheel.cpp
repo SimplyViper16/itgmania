@@ -335,16 +335,28 @@ bool MusicWheel::SelectSong( const Song *p )
 
 	unsigned i;
 	std::vector<MusicWheelItemData *> &from = getWheelItemsData(GAMESTATE->m_SortOrder);
-	for( i=0; i<from.size(); i++ )
-	{
-		if( from[i]->m_pSong == p )
+	if (GAMESTATE->sLastOpenSection != "" && (GAMESTATE->m_SortOrder == SORT_PREFERRED || GAMESTATE->m_SortOrder == SORT_METER)) {
+		// Return to the last open section if it is defined and exists in the current sort
+		for( i=0; i<from.size(); i++ )
 		{
-			// make its group the currently expanded group
-			SetOpenSection( from[i]->m_sText );
-			break;
+			if( from[i]->m_sText == GAMESTATE->sLastOpenSection )
+			{
+				// make its group the currently expanded group
+				SetOpenSection( from[i]->m_sText );
+				break;
+			}
+		}
+	} else {
+		for( i=0; i<from.size(); i++ )
+		{
+			if( from[i]->m_pSong == p )
+			{
+				// make its group the currently expanded group
+				SetOpenSection( from[i]->m_sText );
+				break;
+			}
 		}
 	}
-
 	if( i == from.size() )
 		return false;
 
@@ -958,23 +970,20 @@ std::vector<MusicWheelItemData *> & MusicWheel::getWheelItemsData(SortOrder so) 
 }
 
 void MusicWheel::readyWheelItemsData(SortOrder so) {
-	if(m_WheelItemDatasStatus[so]!=VALID) {
-		RageTimer timer;
+	if(m_WheelItemDatasStatus[so] == VALID && so != SORT_PREFERRED)
+		return;
 
-		std::vector<MusicWheelItemData*> &aUnFilteredDatas = m__UnFilteredWheelItemDatas[so];
+	std::vector<MusicWheelItemData*> &aUnFilteredDatas = m__UnFilteredWheelItemDatas[so];
 
-		if(m_WheelItemDatasStatus[so]==INVALID) {
-			BuildWheelItemDatas(  aUnFilteredDatas, so );
-		}
-		FilterWheelItemDatas( aUnFilteredDatas, m__WheelItemDatas[so], so );
-		// The preferred sort's songs are subject to change during a session (particularly if two players have different preferred songs) 
-		// thus it's status should remain invalid so the wheel items are rebuilt each time in case of change.
-		if (so != SORT_PREFERRED) {
-			m_WheelItemDatasStatus[so]=VALID;
-		}
-		LOG->Trace( "MusicWheel sorting took: %f", timer.GetTimeSinceStart() );
+	if(m_WheelItemDatasStatus[so]==INVALID) {
+		BuildWheelItemDatas(  aUnFilteredDatas, so );
 	}
-
+	FilterWheelItemDatas( aUnFilteredDatas, m__WheelItemDatas[so], so );
+	// The preferred sort's songs are subject to change during a session (particularly if two players have different preferred songs) 
+	// thus it's status should remain invalid so the wheel items are rebuilt each time in case of change.
+	if (so != SORT_PREFERRED) {
+		m_WheelItemDatasStatus[so]=VALID;
+	}
 }
 
 void MusicWheel::FilterWheelItemDatas(std::vector<MusicWheelItemData *> &aUnFilteredDatas, std::vector<MusicWheelItemData *> &aFilteredData, SortOrder so )
@@ -1262,6 +1271,8 @@ void MusicWheel::ChangeMusic( int iDist )
 bool MusicWheel::ChangeSort( SortOrder new_so, bool allowSameSort )	// return true if change successful
 {
 	ASSERT( new_so < NUM_SortOrder );
+	// Reset LastOpenSection as sections differ between sorts
+	GAMESTATE->sLastOpenSection = "";
 	// NOTE(crashcringle): Ignore allowSameSort if we're using SORT_PREFERRED.
 	// Each player has their own preferred songs which sorts the songs differently
 	if( GAMESTATE->m_SortOrder == new_so && (!allowSameSort && new_so != SORT_PREFERRED ))
@@ -1503,7 +1514,15 @@ void MusicWheel::SetOpenSection( RString group )
 
 		for( unsigned i=0; i<m_CurWheelItemData.size(); i++ )
 		{
-			if( m_CurWheelItemData[i] == old )
+			if (GAMESTATE->m_SortOrder == SORT_PREFERRED && !GAMESTATE->sLastOpenSection.empty()) {
+				
+				// old doesn't always have data, use LastOpenSection instead
+				if( m_CurWheelItemData[i]->m_sText == GAMESTATE->sLastOpenSection)
+				{
+					m_iSelection=i;
+					break;
+				}
+			} else if( m_CurWheelItemData[i] == old )
 			{
 				m_iSelection=i;
 				break;

@@ -1,43 +1,20 @@
-/* RageSoundMixBuffer - Simple audio mixing. */
+#ifndef RANDOMSEED_H
+#define RANDOMSEED_H
 
-#ifndef RAGE_SOUND_MIX_BUFFER_H
-#define RAGE_SOUND_MIX_BUFFER_H
+#include <random>
+#include <climits>
 
-#include <cstdint>
-
-class RageSoundMixBuffer
+inline int GetRandomInt()
 {
-public:
-	RageSoundMixBuffer();
-	~RageSoundMixBuffer();
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    return std::uniform_int_distribution<int>(0, INT_MAX)(gen);
+}
 
-	// See how many samples we can stuff into 2MB.
-	static constexpr size_t BUF_SIZE = 2 * 1024 * 1024 / sizeof(float);
-
-	// Mix the given buffer of samples.
-	void write( const float *pBuf, unsigned iSize, int iSourceStride = 1, int iDestStride = 1 );
-
-	// Extend the buffer as if write() was called with a buffer of silence.
-	void Extend( unsigned iSamples );
-
-	void read( std::int16_t *pBuf );
-	void read( float *pBuf );
-	void read_deinterlace( float **pBufs, int channels );
-	float *read() { return m_pMixbuf; }
-	unsigned size() const { return m_iBufUsed; }
-	void SetWriteOffset( int iOffset );
-
-private:
-	float *m_pMixbuf;
-	std::uint64_t m_iBufSize; // actual allocated samples
-	std::uint64_t m_iBufUsed; // used samples
-	int m_iOffset;
-};
-
-#endif
+#endif // RANDOMSEED_H
 
 /*
- * Copyright (c) 2002-2004 Glenn Maynard
+ * (c) 2024 sukibaby
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a

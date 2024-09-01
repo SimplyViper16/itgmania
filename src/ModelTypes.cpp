@@ -29,6 +29,23 @@ AnimatedTexture::~AnimatedTexture()
 	Unload();
 }
 
+RageVector3 RadianToDegree(RageVector3 radian)
+{
+	// This is more accurate than the original SM5 implementation,
+	// but that raises a double-to-float mismatch warning, so this
+	// prevents that issue from occurring.
+	//
+	// A way to implement the original code exactly would be:
+	//
+	// RageVector3 radian = { radian.x * (180.0f / PI) };
+
+	return RageVector3(
+		static_cast<float>(radian.x * (180.0f / PI)),
+		static_cast<float>(radian.y * (180.0f / PI)),
+		static_cast<float>(radian.z * (180.0f / PI))
+	);
+}
+
 void AnimatedTexture::LoadBlank()
 {
 	AnimatedTextureState state(
@@ -303,7 +320,7 @@ bool msAnimation::LoadMilkshapeAsciiBones( RString sAniName, RString sPath )
 				if (sscanf (sLine, "%f %f %f %f", &fTime, &Position[0], &Position[1], &Position[2]) != 4)
 					THROW;
 
-				msPositionKey key;
+				msPositionKey key = {};
 				key.fTime = fTime;
 				key.Position = RageVector3( Position[0], Position[1], Position[2] );
 				Bone.PositionKeys[j] = key;
@@ -328,7 +345,7 @@ bool msAnimation::LoadMilkshapeAsciiBones( RString sAniName, RString sPath )
 					THROW;
 				Rotation = RadianToDegree(Rotation);
 
-				msRotationKey key;
+				msRotationKey key = {};
 				key.fTime = fTime;
 				Rotation = RageVector3( Rotation[0], Rotation[1], Rotation[2] );
 				RageQuatFromHPR( &key.Rotation, Rotation );
