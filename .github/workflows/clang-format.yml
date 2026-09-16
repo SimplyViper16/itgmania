@@ -1,5 +1,13 @@
 name: Clang Format Checker
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - beta
+      - release
+  pull_request:
+    branches:
+      - beta
+      - release
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

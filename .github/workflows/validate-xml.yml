@@ -2,10 +2,16 @@ name: Validate XML Docs
 
 on:
   push:
+    branches:
+      - beta
+      - release
     paths:
       - 'Docs/Luadoc/Lua.xml'
       - 'Docs/Luadoc/LuaDocumentation.xml'
   pull_request:
+    branches:
+      - beta
+      - release
     paths:
       - 'Docs/Luadoc/Lua.xml'
       - 'Docs/Luadoc/LuaDocumentation.xml'
