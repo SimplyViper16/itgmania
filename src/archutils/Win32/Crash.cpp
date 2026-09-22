@@ -3,10 +3,13 @@
 // DO NOT USE stdio.h!  printf() calls malloc()!
 // #include <stdio.h>
 
+#include <strsafe.h>
 #include <windows.h>
 
+#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <string>
 
 #include "CrashHandlerInternal.h"
@@ -23,12 +26,28 @@
 #define malloc not_allowed_here
 #define new not_allowed_here
 
+static void BufferedFormatString(
+    char* buf, size_t bufsiz, const char* fmt, ...) {
+  if (!buf || bufsiz == 0) {
+    return;
+  }
+
+  va_list args;
+  va_start(args, fmt);
+  HRESULT hr = StringCchVPrintfA(buf, bufsiz, fmt, args);
+  va_end(args);
+
+  if (FAILED(hr)) {
+    buf[0] = '\0';
+  }
+}
+
 static void SpliceProgramPath(char* buf, int bufsiz, const char* fn) {
   char tbuf[MAX_PATH];
   char* pszFile;
 
-  GetModuleFileName(nullptr, tbuf, sizeof tbuf);
-  GetFullPathName(tbuf, bufsiz, buf, &pszFile);
+  GetModuleFileNameA(nullptr, tbuf, sizeof tbuf);
+  GetFullPathNameA(tbuf, bufsiz, buf, &pszFile);
   strcpy(pszFile, fn);
 }
 
@@ -94,9 +113,9 @@ static void GetReason(const EXCEPTION_RECORD* pRecord, CrashInfo* crash) {
   const char* reason = LookupException(pRecord->ExceptionCode);
 
   if (reason == nullptr) {
-    wsprintf(
-        crash->m_CrashReason, "unknown exception 0x%08lx",
-        pRecord->ExceptionCode);
+    BufferedFormatString(
+        crash->m_CrashReason, sizeof(crash->m_CrashReason),
+        "unknown exception 0x%08lx", pRecord->ExceptionCode);
   } else {
     strcpy(crash->m_CrashReason, reason);
   }
@@ -122,7 +141,7 @@ bool StartChild(HANDLE& hProcess, HANDLE& hToStdin, HANDLE& hFromStdout) {
   char cwd[MAX_PATH];
   SpliceProgramPath(cwd, MAX_PATH, "");
 
-  STARTUPINFO si;
+  STARTUPINFOA si;
   ZeroMemory(&si, sizeof(si));
   si.dwFlags |= STARTF_USESTDHANDLES;
 
@@ -139,12 +158,12 @@ bool StartChild(HANDLE& hProcess, HANDLE& hToStdin, HANDLE& hFromStdout) {
   }
 
   char szBuf[MAX_PATH] = "";
-  GetModuleFileName(nullptr, szBuf, MAX_PATH);
+  GetModuleFileNameA(nullptr, szBuf, MAX_PATH);
   strcat(szBuf, " ");
   strcat(szBuf, CHILD_MAGIC_PARAMETER);
 
   PROCESS_INFORMATION pi;
-  int iRet = CreateProcess(
+  int iRet = CreateProcessA(
       nullptr,  // pointer to name of executable module
       szBuf,    // pointer to command line string
       nullptr,  // process security attributes
@@ -153,7 +172,7 @@ bool StartChild(HANDLE& hProcess, HANDLE& hToStdin, HANDLE& hFromStdout) {
       0,        // creation flags
       nullptr,  // pointer to new environment block
       cwd,      // pointer to current directory name
-      &si,      // pointer to STARTUPINFO
+      &si,      // pointer to STARTUPINFOA
       &pi       // pointer to PROCESS_INFORMATION
   );
 
@@ -179,12 +198,12 @@ static const char* CrashGetModuleBaseName(HMODULE hmod, char* pszBaseName) {
   // XXX: It looks like nothing in here COULD throw an exception. Need to verify
   // that.
   //	__try {
-  if (!GetModuleFileName(hmod, szPath1, sizeof(szPath1))) {
+  if (!GetModuleFileNameA(hmod, szPath1, sizeof(szPath1))) {
     return nullptr;
   }
 
   char* pszFile;
-  DWORD dw = GetFullPathName(szPath1, sizeof(szPath2), szPath2, &pszFile);
+  DWORD dw = GetFullPathNameA(szPath1, sizeof(szPath2), szPath2, &pszFile);
 
   if (!dw || dw > sizeof(szPath2)) {
     return nullptr;
@@ -327,7 +346,7 @@ static DWORD WINAPI MainExceptionHandler(LPVOID lpParameter) {
      * crashed. If InHere is greater than 1, then we crashed after writing
      * the crash dump; say so. */
     SetUnhandledExceptionFilter(nullptr);
-    MessageBox(
+    MessageBoxA(
         nullptr,
         InHere == 1 ? "The error reporting interface has crashed.\n"
                     : "The error reporting interface has crashed. However, "
@@ -519,8 +538,10 @@ void CrashHandler::ForceDeadlock(std::string reason, uint64_t iID) {
       CONTEXT context;
       context.ContextFlags = CONTEXT_FULL;
       if (!GetThreadContext(hThread, &context)) {
-        wsprintf(
-            g_CrashInfo.m_CrashReason + strlen(g_CrashInfo.m_CrashReason),
+        size_t used = strlen(g_CrashInfo.m_CrashReason);
+        BufferedFormatString(
+            g_CrashInfo.m_CrashReason + used,
+            sizeof(g_CrashInfo.m_CrashReason) - used,
             "; GetThreadContext(%Ix) failed",
             reinterpret_cast<uintptr_t>(hThread));
       } else {

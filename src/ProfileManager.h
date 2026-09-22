@@ -171,12 +171,13 @@ class ProfileManager {
       [NUM_PLAYERS];  // true if Stats.xml was present, but failed to load
                       // (probably because of a signature failure)
   bool m_bLastLoadWasFromLastGood
-      [NUM_PLAYERS];  // if true, then
-                      // m_bLastLoadWasTamperedOrCorrupt
-                      // is also true
+      [NUM_PLAYERS];  // true if the primary Stats file was corrupt or missing
+                      // and LastGood loaded successfully
   mutable bool m_bNeedToBackUpLastLoad[NUM_PLAYERS];  // if true, back up
                                                       // profile on next save
   bool m_bNewProfile[NUM_PLAYERS];
+  // prevent a bad save from overwriting Stats.xml after a prefix reload failed
+  bool m_bStatsPrefixChangeFailed[NUM_PLAYERS];
 
   Profile* m_pMemoryCardProfile[NUM_PLAYERS];  // holds Profile for the
                                                // currently inserted card

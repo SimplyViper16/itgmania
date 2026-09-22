@@ -102,7 +102,6 @@ source_group("Data Structures\\\\Note Data"
 list(APPEND SM_DATA_NOTELOAD_SRC
             "NotesLoader.cpp"
             "NotesLoaderDWI.cpp"
-            "NotesLoaderJson.cpp"
             "NotesLoaderSM.cpp"
             "NotesLoaderSMA.cpp"
             "NotesLoaderSSC.cpp")
@@ -110,7 +109,6 @@ list(APPEND SM_DATA_NOTELOAD_SRC
 list(APPEND SM_DATA_NOTELOAD_HPP
             "NotesLoader.h"
             "NotesLoaderDWI.h"
-            "NotesLoaderJson.h"
             "NotesLoaderSM.h"
             "NotesLoaderSMA.h"
             "NotesLoaderSSC.h")
@@ -239,6 +237,7 @@ list(APPEND SM_DATA_REST_SRC
             "ScreenDimensions.cpp"
             "SoundEffectControl.cpp"
             "StageStats.cpp"
+            "TempoDetector.cpp"
             "TimingData.cpp"
             "TimingSegments.cpp"
             "TitleSubstitution.cpp")
@@ -293,6 +292,7 @@ list(APPEND SM_DATA_REST_HPP
             "SubscriptionManager.h"
             "StageStats.h"
             "ThemeMetric.h"
+            "TempoDetector.h"
             "TimingData.h"
             "TimingSegments.h"
             "TitleSubstitution.h")

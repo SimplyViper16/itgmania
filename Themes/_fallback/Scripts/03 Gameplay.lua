@@ -344,8 +344,8 @@ local CodeDetectorCodes = {
 	},
 	CloseCurrentFolder = {
 		default = "MenuUp-MenuDown",
-		dance = "Up-Down",
-		pump = "@UpLeft-@UpRight-Center",
+		dance = "Up-Down|@MenuDown-MenuUp",
+		pump = "@UpLeft-@UpRight-Center|@MenuDown-MenuUp",
 	},
 	-- OptionsList
 	PrevOptionsList = {

@@ -1,8 +1,20 @@
 on:
   push:
-  pull_request:
+    branches:
+      - beta
+      - release
     paths-ignore:
       - '**.md'
+  pull_request:
+    branches:
+      - beta
+      - release
+    paths-ignore:
+      - '**.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 name: Continuous integration
 

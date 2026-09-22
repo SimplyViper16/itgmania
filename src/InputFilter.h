@@ -4,10 +4,12 @@
 #ifndef INPUT_FILTER_H
 #define INPUT_FILTER_H
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
 #include "EnumHelper.h"
+#include "PlayerNumber.h"
 #include "RageInputDevice.h"
 #include "RageTimer.h"
 
@@ -45,6 +47,87 @@ struct MouseCoordinates {
   float fX;
   float fY;
   float fZ;
+};
+
+// describes each of the panels of a single player dance pad
+enum PadPanel {
+  PadPanel_UpLeft = 0,
+  PadPanel_Up,
+  PadPanel_UpRight,
+  PadPanel_Left,
+  PadPanel_Center,
+  PadPanel_Right,
+  PadPanel_DownLeft,
+  PadPanel_Down,
+  PadPanel_DownRight,
+
+  NUM_PadPanel,
+  PadPanel_Invalid
+};
+
+enum PadSensor {
+  PadSensor_TopCenter = 0,
+  PadSensor_TopLeft,
+  PadSensor_TopRight,
+  PadSensor_RightCenter,
+  PadSensor_BottomCenter,
+  PadSensor_BottomLeft,
+  PadSensor_BottomRight,
+  PadSensor_LeftCenter,
+
+  NUM_PadSensor,
+  PadSensor_Invalid
+};
+
+struct PadSensorState {
+ private:
+  unsigned int currentValue[NUM_PadPanel][NUM_PadSensor] = {};
+  unsigned int threshold[NUM_PadPanel][NUM_PadSensor] = {};
+  unsigned int min = 0;
+  unsigned int max = 100;
+
+ public:
+  float GetIntensity(PadPanel panel, PadSensor sensor) const {
+    return static_cast<float>(
+               currentValue[static_cast<int>(panel)][static_cast<int>(sensor)] -
+               min) /
+           static_cast<float>(max - min);
+  }
+
+  void Set(PadPanel panel, PadSensor sensor, unsigned int value) {
+    value = std::clamp(value, min, max);
+    this->currentValue[static_cast<int>(panel)][static_cast<int>(sensor)] =
+        value;
+  }
+
+  void SetBinary(PadPanel panel, PadSensor sensor, bool isPressed) {
+    Set(panel, sensor, isPressed ? max : min);
+  }
+
+  void SetMin(unsigned int value) { min = std::min(value, max); }
+  void SetMax(unsigned int value) { max = std::max(value, min); }
+
+  void SetMinMax(unsigned int newMin, unsigned int newMax) {
+    min = std::min(newMin, newMax);
+    max = std::max(newMin, newMax);
+  }
+
+  unsigned int GetMax() { return max; }
+  unsigned int GetMin() { return min; }
+
+  void SetThreshold(size_t panel, size_t sensor, unsigned int value) {
+    threshold[panel][sensor] = std::clamp(value, min, max);
+  }
+
+  unsigned int GetThreshold(size_t panel, size_t sensor) const {
+    return threshold[panel][sensor];
+  }
+
+  bool isAboveThreshold(size_t panel, size_t sensor) const {
+    return currentValue[panel][sensor] >= threshold[panel][sensor];
+  }
+
+  void Clear() { std::memset(currentValue, 0, sizeof(currentValue)); }
 };
 
 class RageMutex;
@@ -89,6 +172,22 @@ class InputFilter {
   float GetCursorY() { return m_MouseCoords.fY; }
   float GetMouseWheel() { return m_MouseCoords.fZ; }
 
+  PadSensorState* getFullSensorState(PlayerNumber pn) {
+    if (pn < NUM_PLAYERS) {
+      return &m_Sensors[pn];
+    }
+    return nullptr;
+  }
+
+  bool setFullSensorStateMax(PlayerNumber pn, unsigned int max);
+
+  bool setFullSensorState(
+      PlayerNumber pn, PadPanel panel, PadSensor sensor,
+      unsigned int intensity);
+
+  bool setFullSensorStateBinary(
+      PlayerNumber pn, PadPanel panel, PadSensor sensor, bool isPressed);
+
   // Lua
   void PushSelf(lua_State* L);
 
@@ -100,6 +199,9 @@ class InputFilter {
   std::vector<InputEvent> queue;
   RageMutex* queuemutex;
   MouseCoordinates m_MouseCoords;
+
+  // debug sensors.
+  PadSensorState m_Sensors[NUM_PLAYERS];
 
   InputFilter(const InputFilter& rhs);
   InputFilter& operator=(const InputFilter& rhs);

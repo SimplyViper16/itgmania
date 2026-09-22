@@ -31,6 +31,7 @@
 #include "Song.h"
 #include "SongPosition.h"
 #include "Steps.h"
+#include "TempoDetector.h"
 #include "ThemeMetric.h"
 #include "TimingData.h"
 #include "TimingSegments.h"
@@ -169,7 +170,13 @@ enum EditButton {
 
   EDIT_BUTTON_SAVE, /**< Save the present changes into the chart. */
 
-  EDIT_BUTTON_UNDO, /**< Undo a recent change. */
+  EDIT_BUTTON_UNDO,  /**< Undo a recent change. */
+  EDIT_BUTTON_REDO,  /**< Redo a change that was undone. */
+  EDIT_BUTTON_COPY,  /**< Copy the current selection to the clipboard. */
+  EDIT_BUTTON_CUT,   /**< Cut the current selection to the clipboard. */
+  EDIT_BUTTON_PASTE, /**< Paste the clipboard at the current beat. */
+
+  EDIT_BUTTON_TOGGLE_WAVEFORM, /**< Show/hide the song waveform. */
 
   EDIT_BUTTON_ADD_COURSE_MODS,
 
@@ -259,11 +266,25 @@ class ScreenEdit : public ScreenWithMenuElements {
   void PlayPreviewMusic();
 
   // Call this before modifying m_NoteDataEdit.
-  void SaveUndo();
+  void SaveUndo(const std::string& sDescription = "Edit");
   /** @brief Revert the last change made to m_NoteDataEdit. */
   void Undo();
-  /** @brief Remove the previously stored NoteData to prevent undoing. */
+  /** @brief Reapply the last change that was undone. */
+  void Redo();
+  /** @brief Remove the previously stored NoteData to prevent undoing/redoing.
+   */
   void ClearUndo();
+  /** @brief Cut/copy the current area selection to the clipboard, or report
+   * failure via a system message if there is no selection. When bIncludeTiming
+   * is set, the timing segments in the selection travel with the notes. */
+  void CutSelectionToClipboard(bool bIncludeTiming);
+  void CopySelectionToClipboard(bool bIncludeTiming);
+  /** @brief Paste the clipboard at the current beat, reporting the result via
+   * a system message. */
+  void PasteClipboardAtCurrentBeat(bool bIncludeTiming);
+  /** @brief Show/hide the song waveform, reporting the new state via a
+   * system message. */
+  void ToggleWaveform();
   /**
    * @brief This is to be called after modifying m_NoteDataEdit.
    *
@@ -287,6 +308,16 @@ class ScreenEdit : public ScreenWithMenuElements {
 
   /** @brief Display the TimingData menu for editing song and step timing. */
   void DisplayTimingMenu();
+
+  /** @brief Convert a screen y coordinate to the beat drawn at that point. */
+  float MouseYToBeat(float fScreenY);
+  /** @brief Turn the area the mouse was dragged over into an area selection. */
+  void FinishMouseDragSelection();
+
+  /** @brief Display the menu for detecting and applying BPM/offset. */
+  void DisplayAdjustSyncMenu();
+  /** @brief Start detecting the BPM/offset of the current chart's music. */
+  void StartTempoDetection();
 
   enum TimingChangeMenuPurpose {
     menu_is_for_copying,
@@ -324,14 +355,21 @@ class ScreenEdit : public ScreenWithMenuElements {
   /**
    * @brief Allow for copying and pasting a song's (or steps's) full Timing
    * Data.
+   *
+   * Static so this persists across ScreenEdit instances (see m_Clipboard).
    */
-  TimingData clipboardFullTiming;
+  static TimingData clipboardFullTiming;
 
   /** @brief The current TapNote that would be inserted. */
   TapNote m_selectedTap;
 
   /** @brief The type of segment users will jump back and forth between. */
   TimingSegmentType currentCycleSegment;
+
+  /** @brief Runs while the music is being analyzed for its BPM and offset. */
+  TempoDetector* m_pTempoDetector;
+  std::vector<TempoResult> m_TempoResults;
+  std::string m_sTempoProgress;
 
   void UpdateTextInfo();
   BitmapText m_textInfo;  // status information that changes
@@ -348,16 +386,33 @@ class ScreenEdit : public ScreenWithMenuElements {
    * If shift wasn't pressed, this will be -1. */
   int m_iShiftAnchor;
 
-  /** @brief The NoteData that has been cut or copied. */
-  NoteData m_Clipboard;
-  bool m_bHasUndo;
   /**
-   * @brief The NoteData as it once just one action prior.
+   * @brief The NoteData that has been cut or copied.
    *
-   * TODO: Convert this into a stack or vector of NoteData to allow multiple
-   * undos. -aj
-   * TODO: Look into a redo option. -aj */
-  NoteData m_Undo;
+   * This is static so that the clipboard persists when switching between
+   * charts/difficulties, which destroys and recreates ScreenEdit. */
+  static NoteData m_Clipboard;
+
+  /** @brief Whether the last cut/copy also captured the timing segments in
+   * the selection, so that pasting can restore them. */
+  static bool s_bClipboardHasTiming;
+
+  /** @brief The marquee used to select an area with the mouse. */
+  bool m_bMouseDragging;
+  float m_fMouseDragStartX, m_fMouseDragStartY;
+  float m_fMouseDragCurrentX, m_fMouseDragCurrentY;
+  Quad m_rectMouseSelection;
+
+  /** @brief One saved state in the undo/redo history. */
+  struct UndoState {
+    NoteData m_NoteData;
+    std::string m_sDescription;
+  };
+  static const size_t MAX_UNDO_STATES = 50;
+  /** @brief States that can be restored via Undo(), most recent last. */
+  std::vector<UndoState> m_UndoStack;
+  /** @brief States that can be restored via Redo(), most recent last. */
+  std::vector<UndoState> m_RedoStack;
 
   /** @brief Has the NoteData been changed such that a user should be prompted
    * to save? */
@@ -413,6 +468,18 @@ class ScreenEdit : public ScreenWithMenuElements {
 
   ThemeMetric<EditMode> EDIT_MODE;
 
+  // Scroll acceleration tracking for mouse wheel
+  RageTimer m_LastWheelScrollTime;
+  int m_iConsecutiveWheelScrolls;
+  float m_fScrollAccelerationMultiplier;
+  static const float SCROLL_ACCELERATION_RESET_TIME;  // Time in seconds to
+                                                      // reset scroll counter
+  static const float MAX_SCROLL_ACCELERATION_MULTIPLIER;
+
+  // Scroll-speed presets stepped through by EDIT_BUTTON_SCROLL_SPEED_UP/DOWN
+  // (CTRL+Up/Down) and CTRL+wheel; parsed from the ScrollSpeedPresets metric.
+  std::vector<float> m_vScrollSpeedPresets;
+
  public:
   /** @brief What are the choices that one can make on the main menu? */
   enum MainMenuChoice {
@@ -429,6 +496,7 @@ class ScreenEdit : public ScreenWithMenuElements {
     options,            /**< Modify the PlayerOptions and SongOptions. */
     edit_song_info,     /**< Edit some general information about the song. */
     edit_timing_data,   /**< Edit the chart's timing data. */
+    adjust_sync,        /**< Detect and apply the music's BPM and offset. */
     view_steps_data,    /**< View step statistics. */
     play_preview_music, /**< Play the song's preview music. */
     exit,
@@ -667,6 +735,18 @@ class ScreenEdit : public ScreenWithMenuElements {
   };
   void HandleTimingDataChangeChoice(
       TimingDataChangeChoice choice, const std::vector<int>& answers);
+
+  /**
+   * @brief The rows of the Adjust Sync menu.
+   *
+   * Each detected result adds an "apply" row followed by two read-only rows,
+   * so apply rows use adjust_sync_apply plus the index of the result. */
+  enum AdjustSyncChoice {
+    adjust_sync_find_bpm,
+    adjust_sync_readonly,
+    adjust_sync_apply
+  };
+  void HandleAdjustSyncMenuChoice(int iRowCode);
 
   enum BGChangeChoice {
     layer,

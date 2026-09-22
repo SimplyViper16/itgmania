@@ -29,6 +29,7 @@
 #include "HighScore.h"
 #include "IniFile.h"
 #include "LuaManager.h"
+#include "MemoryCardManager.h"
 #include "PlayerNumber.h"
 #include "Preference.h"
 #include "PrefsManager.h"
@@ -1110,7 +1111,7 @@ void Profile::LoadCustomFunction(std::string sDir, PlayerNumber pn) {
   LUA->Release(L);
 }
 
-void Profile::HandleStatsPrefixChange(std::string dir, bool require_signature) {
+bool Profile::HandleStatsPrefixChange(std::string dir, bool require_signature) {
   // Temp variables to preserve stuff across the reload.
   // Some stuff intentionally left out because the original reason for the
   // stats prefix was to allow scores from different game types to coexist.
@@ -1167,8 +1168,10 @@ void Profile::HandleStatsPrefixChange(std::string dir, bool require_signature) {
   m_fTotalCaloriesBurned = total_calories_burned;
   m_UserTable = user_table;
   if (need_to_create_file) {
-    SaveAllToDir(dir, require_signature);
+    return SaveAllToDir(dir, require_signature);
   }
+
+  return true;
 }
 
 ProfileLoadResult Profile::LoadAllFromDir(
@@ -1266,6 +1269,10 @@ void Profile::LoadSongsFromDir(
       break;
     }
 
+    // Each song gets a fresh memory card timeout. song_load_start_time limits
+    // the total custom song loading time.
+    MEMCARDMAN->RefreshCardAccessTimeout();
+
     auto song = std::make_unique<Song>();
     if (!song->LoadFromSongDir(song_dir, false, prof_slot)) {
       LOG->Trace("Song %s failed to load.", song_dir.c_str());
@@ -1288,10 +1295,15 @@ void Profile::LoadSongsFromDir(
   if (m_songs.empty()) {
     m_groups.clear();
     LOG->Trace("No valid songs were loaded.");
+
+    // Don't make subsequent profile work inherit the time
+    // used by the last song.
+    MEMCARDMAN->RefreshCardAccessTimeout();
+
     return;
   }
 
-  // Remove groups that contain no songs
+  // Remove groups with no songs
   for (int i = int(m_groups.size()) - 1; i >= 0; --i) {
     Group* group = m_groups[i];
 
@@ -1300,6 +1312,10 @@ void Profile::LoadSongsFromDir(
       m_groups.erase(m_groups.begin() + i);
     }
   }
+
+  // Don't make subsequent profile work inherit the time
+  // used by the last song.
+  MEMCARDMAN->RefreshCardAccessTimeout();
 }
 
 ProfileLoadResult Profile::LoadStatsFromDir(
@@ -2629,19 +2645,33 @@ XNode* Profile::SaveCoinDataCreateNode() const {
 }
 
 void Profile::MoveBackupToDir(std::string sFromDir, std::string sToDir) {
-  if (FILEMAN->IsAFile(sFromDir + STATS_XML) &&
-      FILEMAN->IsAFile(sFromDir + STATS_XML + SIGNATURE_APPEND)) {
-    FILEMAN->Move(sFromDir + STATS_XML, sToDir + STATS_XML);
-    FILEMAN->Move(
-        sFromDir + STATS_XML + SIGNATURE_APPEND,
-        sToDir + STATS_XML + SIGNATURE_APPEND);
-  } else if (
-      FILEMAN->IsAFile(sFromDir + STATS_XML_GZ) &&
-      FILEMAN->IsAFile(sFromDir + STATS_XML_GZ + SIGNATURE_APPEND)) {
-    FILEMAN->Move(sFromDir + STATS_XML_GZ, sToDir + STATS_XML);
-    FILEMAN->Move(
-        sFromDir + STATS_XML_GZ + SIGNATURE_APPEND,
-        sToDir + STATS_XML + SIGNATURE_APPEND);
+  std::string stats_file;
+  std::string old_stats_file;
+  if (FILEMAN->IsAFile(sFromDir + STATS_XML)) {
+    stats_file = STATS_XML;
+    old_stats_file = STATS_XML_GZ;
+  } else if (FILEMAN->IsAFile(sFromDir + STATS_XML_GZ)) {
+    stats_file = STATS_XML_GZ;
+    old_stats_file = STATS_XML;
+  }
+
+  if (!stats_file.empty()) {
+    bool backup_complete =
+        FILEMAN->Move(sFromDir + stats_file, sToDir + stats_file);
+    const std::string signature_file = stats_file + SIGNATURE_APPEND;
+    if (FILEMAN->IsAFile(sFromDir + signature_file)) {
+      const bool signature_moved =
+          FILEMAN->Move(sFromDir + signature_file, sToDir + signature_file);
+      backup_complete = backup_complete && signature_moved;
+    }
+
+    // We should not leave an outdated file in LastGood for an alternate format
+    // after the new backup succeeds.
+    // Otherwise the wrong backup file might be loaded if LastGood gets used.
+    if (backup_complete) {
+      FILEMAN->Remove(sToDir + old_stats_file);
+      FILEMAN->Remove(sToDir + old_stats_file + SIGNATURE_APPEND);
+    }
   }
 
   if (FILEMAN->IsAFile(sFromDir + EDITABLE_INI)) {

@@ -44,9 +44,8 @@ runs:
       uses: actions/cache@v5
       with:
         path: .ccache
-        key: ${{ inputs.os }}-ccache-${{ github.ref }}-${{ github.sha }}
+        key: ${{ inputs.os }}-ccache-${{ github.ref }}
         restore-keys: |
-          ${{ inputs.os }}-ccache-${{ github.ref }}-
           ${{ inputs.os }}-ccache-
 
     - name: Set ccache environment

@@ -185,6 +185,7 @@ list(APPEND SMDATA_ARCH_LIGHTS_SRC "arch/Lights/LightsDriver.cpp"
             "arch/Lights/LightsDriver_stac.cpp"
             "arch/Lights/LightsDriver_stac2.cpp"
             "arch/Lights/LightsDriver_snek.cpp"
+            "arch/Lights/LightsDriver_brokeio.cpp"
             "arch/Lights/LightsDriver_fusion.cpp"
             "arch/Lights/LightsDriver_MinimaidHID.cpp"
             "arch/Lights/LightsDriver_PacDrive.cpp"
@@ -198,6 +199,7 @@ list(APPEND SMDATA_ARCH_LIGHTS_HPP "arch/Lights/LightsDriver.h"
             "arch/Lights/LightsDriver_stac.h"
             "arch/Lights/LightsDriver_stac2.h"
             "arch/Lights/LightsDriver_snek.h"
+            "arch/Lights/LightsDriver_brokeio.h"
             "arch/Lights/LightsDriver_fusion.h"
             "arch/Lights/LightsDriver_MinimaidHID.cpp"
             "arch/Lights/LightsDriver_PacDrive.h"
@@ -252,9 +254,11 @@ source_group("Arch Specific\\\\Lights"
 
 list(APPEND SMDATA_ARCH_INPUT_SRC "arch/InputHandler/InputHandler.cpp"
             "arch/InputHandler/InputHandler_PumpHID.cpp"
+            "arch/InputHandler/InputHandler_SnekConfig.cpp"
             "arch/InputHandler/InputHandler_MonkeyKeyboard.cpp")
 list(APPEND SMDATA_ARCH_INPUT_HPP "arch/InputHandler/InputHandler.h"
             "arch/InputHandler/InputHandler_PumpHID.h"
+            "arch/InputHandler/InputHandler_SnekConfig.h"
             "arch/InputHandler/InputHandler_MonkeyKeyboard.h")
 
 if(WIN32)

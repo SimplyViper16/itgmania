@@ -86,6 +86,8 @@ static Preference<bool> g_bEditorShowBGChangesPlay(
 constexpr static float record_hold_default = 0.3f;
 float record_hold_seconds = record_hold_default;
 constexpr static float time_between_autosave = 300.0f;  // 5 minutes. -Kyz
+static float GetMouseScreenX();
+static float GetMouseScreenY();
 
 #define PLAYER_X (SCREEN_CENTER_X)
 #define PLAYER_Y (SCREEN_CENTER_Y)
@@ -135,6 +137,7 @@ AutoScreenMessage(SM_DoRevertFromDisk);
 AutoScreenMessage(SM_ConfirmClearArea);
 AutoScreenMessage(SM_BackFromTimingDataInformation);
 AutoScreenMessage(SM_BackFromTimingDataChangeInformation);
+AutoScreenMessage(SM_BackFromAdjustSyncMenu);
 AutoScreenMessage(SM_BackFromDifficultyMeterChange);
 AutoScreenMessage(SM_BackFromBeat0Change);
 AutoScreenMessage(SM_BackFromBPMChange);
@@ -280,6 +283,11 @@ void ScreenEdit::InitEditMappings() {
   name_to_edit_button["SAVE"] = EDIT_BUTTON_SAVE;
 
   name_to_edit_button["UNDO"] = EDIT_BUTTON_UNDO;
+  name_to_edit_button["REDO"] = EDIT_BUTTON_REDO;
+  name_to_edit_button["COPY"] = EDIT_BUTTON_COPY;
+  name_to_edit_button["CUT"] = EDIT_BUTTON_CUT;
+  name_to_edit_button["PASTE"] = EDIT_BUTTON_PASTE;
+  name_to_edit_button["TOGGLE_WAVEFORM"] = EDIT_BUTTON_TOGGLE_WAVEFORM;
 
   name_to_edit_button["ADD_COURSE_MODS"] = EDIT_BUTTON_ADD_COURSE_MODS;
 
@@ -468,13 +476,13 @@ void ScreenEdit::InitEditMappings() {
       m_EditMappingsDeviceInput.button[EDIT_BUTTON_SNAP_PREV][0] =
           DeviceInput(DEVICE_KEYBOARD, KEY_RIGHT);
 
-      // v = course playback menu
+      // k = course playback menu
       // m_EditMappingsDeviceInput.button[EDIT_BUTTON_OPEN_COURSE_ATTACK_MENU][0]
       // = DeviceInput(DEVICE_KEYBOARD, KEY_Cv);
       m_EditMappingsDeviceInput.button[EDIT_BUTTON_ADD_COURSE_MODS][0] =
           DeviceInput(DEVICE_KEYBOARD, KEY_Co);
       m_EditMappingsDeviceInput.button[EDIT_BUTTON_OPEN_COURSE_MENU][0] =
-          DeviceInput(DEVICE_KEYBOARD, KEY_Cv);
+          DeviceInput(DEVICE_KEYBOARD, KEY_Ck);
 
       // F1 = Show help popup
       m_EditMappingsDeviceInput.button[EDIT_BUTTON_OPEN_INPUT_HELP][0] =
@@ -708,8 +716,49 @@ void ScreenEdit::InitEditMappings() {
       DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL);
 #endif
 
+  m_EditMappingsDeviceInput.button[EDIT_BUTTON_UNDO][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_Cz);
   m_EditMappingsDeviceInput.button[EDIT_BUTTON_UNDO][1] =
       DeviceInput(DEVICE_KEYBOARD, KEY_Cu);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_UNDO][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_LCTRL);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_UNDO][1] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL);
+
+  m_EditMappingsDeviceInput.button[EDIT_BUTTON_REDO][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_Cy);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_REDO][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_LCTRL);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_REDO][1] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL);
+
+  m_EditMappingsDeviceInput.button[EDIT_BUTTON_CUT][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_Cx);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_CUT][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_LCTRL);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_CUT][1] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL);
+
+  m_EditMappingsDeviceInput.button[EDIT_BUTTON_COPY][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_Cc);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_COPY][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_LCTRL);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_COPY][1] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL);
+
+  m_EditMappingsDeviceInput.button[EDIT_BUTTON_PASTE][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_Cv);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_PASTE][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_LCTRL);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_PASTE][1] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL);
+
+  m_EditMappingsDeviceInput.button[EDIT_BUTTON_TOGGLE_WAVEFORM][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_Cg);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_TOGGLE_WAVEFORM][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_LCTRL);
+  m_EditMappingsDeviceInput.hold[EDIT_BUTTON_TOGGLE_WAVEFORM][1] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL);
 
   // Switch players, if it makes sense to do so.
   m_EditMappingsDeviceInput.button[EDIT_BUTTON_SWITCH_PLAYERS][0] =
@@ -761,6 +810,10 @@ void ScreenEdit::InitEditMappings() {
       GAME_BUTTON_BACK;
   m_RecordPausedMappingsDeviceInput.button[EDIT_BUTTON_UNDO][0] =
       DeviceInput(DEVICE_KEYBOARD, KEY_Cu);
+  m_RecordPausedMappingsDeviceInput.hold[EDIT_BUTTON_UNDO][0] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_LCTRL);
+  m_RecordPausedMappingsDeviceInput.hold[EDIT_BUTTON_UNDO][1] =
+      DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL);
 
   IniFile mapping_ini;
   // Only use the mappings file if it exists.  It's meant to be optional, and
@@ -1026,6 +1079,20 @@ static MenuDef g_IndividualAttack(
 static MenuDef g_KeysoundTrack(
     "ScreenMiniMenuKeysoundTrack");  // fill this in dynamically
 
+static MenuDef g_AdjustSyncMenu(
+    "ScreenMiniMenuAdjustSyncMenu"
+    // fill this in dynamically
+);
+
+static LocalizedString DETECTING_BPM(
+    "ScreenEdit", "Analyzing music, this may take a moment...");
+static LocalizedString DETECT_BPM_FAILED(
+    "ScreenEdit", "Could not analyze the music: %s");
+static LocalizedString DETECT_BPM_NO_RESULTS(
+    "ScreenEdit", "No BPM could be detected for this music.");
+static LocalizedString APPLIED_SYNC(
+    "ScreenEdit", "Applied %.3f BPM with an offset of %+.3f.");
+
 static MenuDef g_MainMenu(
     "ScreenMiniMenuMainMenu",
     MenuRowDef(
@@ -1063,6 +1130,9 @@ static MenuDef g_MainMenu(
     MenuRowDef(
         ScreenEdit::edit_timing_data, "Edit Timing Data", true, EditMode_Full,
         true, true, 0, nullptr),
+    MenuRowDef(
+        ScreenEdit::adjust_sync, "Adjust Sync", true, EditMode_Full, true, true,
+        0, nullptr),
     MenuRowDef(
         ScreenEdit::view_steps_data, "View steps data", true, EditMode_Full,
         true, true, 0, nullptr),
@@ -1706,10 +1776,169 @@ static ThemeMetric<std::string> EDIT_MODIFIERS("ScreenEdit", "EditModifiers");
 
 static ThemeMetric<bool> LOOP_ON_CHART_END("ScreenEdit", "LoopOnChartEnd");
 
+// Determines how fast the scroll wheel scrolls through the chart
+static ThemeMetric<float> SCROLL_WHEEL_ACCELERATION_RATE(
+    "ScreenEdit", "ScrollWheelAccelerationRate");
+
+// Discrete speed steps used by EDIT_BUTTON_SCROLL_SPEED_UP/DOWN,
+// In practice, this affects how much we can zoom the spacing of the chart
+static ThemeMetric<std::string> SCROLL_SPEED_PRESETS_STR(
+    "ScreenEdit", "ScrollSpeedPresets");
+
+static ThemeMetric<bool> INVERT_SCROLL_BUTTONS(
+    "ScreenEdit", "InvertScrollSpeedButtons");
+
+// How fast the notefield's displayed scroll speed catches up to
+// it's new value. Lower values will make it take longer to reach the new value
+// Higher values will make it reach the new value faster.
+static ThemeMetric<float> SCROLL_SPEED_APPROACH_RATE(
+    "ScreenEdit", "ScrollSpeedApproachRate");
+
 REGISTER_SCREEN_CLASS(ScreenEdit);
+
+// Static so the clipboard (notes + full timing) persists across
+// ScreenEdit instances, which lets Cut/Copy/Paste work between charts.
+NoteData ScreenEdit::m_Clipboard;
+TimingData ScreenEdit::clipboardFullTiming;
+bool ScreenEdit::s_bClipboardHasTiming = false;
+
+// Time in seconds to reset the scroll acceleration counter
+const float ScreenEdit::SCROLL_ACCELERATION_RESET_TIME = 0.5f;
+const float ScreenEdit::MAX_SCROLL_ACCELERATION_MULTIPLIER = 8.0f;
+
+// The cursor is reported in window pixels, so scale it the same way the Lua
+// bindings do.
+static float GetMouseScreenX() {
+  return SCALE(
+      INPUTFILTER->GetCursorX(), 0.0f,
+      (float)(PREFSMAN->m_iDisplayHeight * PREFSMAN->m_fDisplayAspectRatio),
+      SCREEN_LEFT, SCREEN_RIGHT);
+}
+
+static float GetMouseScreenY() {
+  return SCALE(
+      INPUTFILTER->GetCursorY(), 0.0f, (float)PREFSMAN->m_iDisplayHeight,
+      SCREEN_TOP, SCREEN_BOTTOM);
+}
+
+float ScreenEdit::MouseYToBeat(float fScreenY) {
+  const float fZoom = m_NoteFieldEdit.GetZoomY();
+
+  if (std::abs(fZoom) < 0.0001f) {
+    return GetBeat();
+  }
+
+  /*
+   * The editor NoteField is drawn using m_fTrailingBeat rather than the
+   * instantaneous editor cursor beat.  This is what gives scrolling its
+   * smooth/trailing appearance.
+   *
+   * Mouse hit testing therefore has to temporarily use the same song
+   * position that DrawPrimitives() uses, otherwise the beat under the
+   * mouse will not match the arrows currently visible on screen.
+   */
+  const float fDisplayedBeat = m_fTrailingBeat;
+
+  PlayerState* pPlayerState =
+      const_cast<PlayerState*>(m_NoteFieldEdit.GetPlayerState());
+
+  /*
+   * Save the real positions.
+   *
+   * DrawPrimitives() normally restores these after drawing the NoteField,
+   * so by the time a mouse event happens they no longer represent what
+   * was actually used to render the arrows.
+   */
+  const float fPlayerSongBeat = pPlayerState->m_Position.m_fSongBeat;
+  const float fPlayerSongBeatNoOffset =
+      pPlayerState->m_Position.m_fSongBeatNoOffset;
+  const float fPlayerSongBeatVisible =
+      pPlayerState->m_Position.m_fSongBeatVisible;
+
+  const float fGameSongBeat = GAMESTATE->m_Position.m_fSongBeat;
+  const float fGameSongBeatNoOffset = GAMESTATE->m_Position.m_fSongBeatNoOffset;
+  const float fGameSongBeatVisible = GAMESTATE->m_Position.m_fSongBeatVisible;
+
+  /*
+   * Reproduce the exact position state used by DrawPrimitives().
+   */
+  pPlayerState->m_Position.m_fSongBeat = fDisplayedBeat;
+  pPlayerState->m_Position.m_fSongBeatNoOffset = fDisplayedBeat;
+  pPlayerState->m_Position.m_fSongBeatVisible = fDisplayedBeat;
+
+  GAMESTATE->m_Position.m_fSongBeat = fDisplayedBeat;
+  GAMESTATE->m_Position.m_fSongBeatNoOffset = fDisplayedBeat;
+  GAMESTATE->m_Position.m_fSongBeatVisible = fDisplayedBeat;
+
+  ArrowEffects::SetCurrentOptions(
+      &m_PlayerStateEdit.m_PlayerOptions.GetCurrent());
+
+  const float fReverseOffsetPixels = PLAYER_HEIGHT * 2;
+
+  /*
+   * Convert from ScreenEdit coordinates into NoteField-local coordinates.
+   */
+  const float fLocalY = (fScreenY - m_NoteFieldEdit.GetY()) / fZoom;
+
+  /*
+   * Determine where the displayed beat and the next beat are actually
+   * being drawn.
+   */
+  const float fY0 = ArrowEffects::GetYPos(
+      pPlayerState, 0,
+      ArrowEffects::GetYOffset(pPlayerState, 0, fDisplayedBeat),
+      fReverseOffsetPixels);
+
+  const float fY1 = ArrowEffects::GetYPos(
+      pPlayerState, 0,
+      ArrowEffects::GetYOffset(pPlayerState, 0, fDisplayedBeat + 1.0f),
+      fReverseOffsetPixels);
+
+  /*
+   * Restore the real song positions immediately.
+   */
+  pPlayerState->m_Position.m_fSongBeat = fPlayerSongBeat;
+  pPlayerState->m_Position.m_fSongBeatNoOffset = fPlayerSongBeatNoOffset;
+  pPlayerState->m_Position.m_fSongBeatVisible = fPlayerSongBeatVisible;
+
+  GAMESTATE->m_Position.m_fSongBeat = fGameSongBeat;
+  GAMESTATE->m_Position.m_fSongBeatNoOffset = fGameSongBeatNoOffset;
+  GAMESTATE->m_Position.m_fSongBeatVisible = fGameSongBeatVisible;
+
+  const float fPixelsPerBeat = fY1 - fY0;
+
+  if (std::abs(fPixelsPerBeat) < 0.0001f) {
+    return fDisplayedBeat;
+  }
+
+  /*
+   * Translate the mouse's Y position into the beat currently underneath it.
+   */
+  return fDisplayedBeat + ((fLocalY - fY0) / fPixelsPerBeat);
+}
 
 void ScreenEdit::Init() {
   m_pSoundMusic = nullptr;
+  m_bMouseDragging = false;
+  m_fMouseDragStartX = m_fMouseDragStartY = 0;
+  m_fMouseDragCurrentX = m_fMouseDragCurrentY = 0;
+  m_pTempoDetector = nullptr;
+
+  // Initialize scroll acceleration tracking
+  m_iConsecutiveWheelScrolls = 0;
+  m_fScrollAccelerationMultiplier = 1.0f;
+
+  // Parse the configurable scroll-speed presets; fall back to a sane default
+  // if the metric is empty or malformed.
+  m_vScrollSpeedPresets.clear();
+  std::vector<std::string> asPresets;
+  split(SCROLL_SPEED_PRESETS_STR.GetValue(), ",", asPresets, true);
+  for (const std::string& sPreset : asPresets) {
+    m_vScrollSpeedPresets.push_back(StringToFloat(sPreset));
+  }
+  if (m_vScrollSpeedPresets.empty()) {
+    m_vScrollSpeedPresets = {1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
+  }
 
   GAMESTATE->m_bIsUsingStepTiming = false;
   GAMESTATE->m_bInStepEditor = true;
@@ -1847,11 +2076,18 @@ void ScreenEdit::Init() {
 
   this->originalPlayerOptions.FromString(ModsLevel_Stage, EDIT_MODIFIERS);
 
+  // Make CTRL+Up/Down and CTRL+wheel scroll-speed changes catch up configurable
+  // instead of using gameplay's slow multi-second approach.
+  PO_GROUP_ASSIGN(
+      m_PlayerStateEdit.m_PlayerOptions, ModsLevel_Stage, m_SpeedfScrollSpeed,
+      SCROLL_SPEED_APPROACH_RATE.GetValue());
+
   m_pSteps->GetNoteData(m_NoteDataEdit);
   m_NoteFieldEdit.SetXY(EDIT_X, EDIT_Y);
   m_NoteFieldEdit.SetZoom(SCREEN_HEIGHT / 480 * 0.5);
   m_NoteFieldEdit.Init(&m_PlayerStateEdit, PLAYER_HEIGHT * 2, false);
   m_NoteFieldEdit.Load(&m_NoteDataEdit, -240, 850);
+  m_NoteFieldEdit.LoadWaveform(m_pSteps->GetMusicPath());
   this->AddChild(&m_NoteFieldEdit);
 
   m_NoteDataRecord.SetNumTracks(m_NoteDataEdit.GetNumTracks());
@@ -1867,12 +2103,14 @@ void ScreenEdit::Init() {
 
   m_Clipboard.SetNumTracks(m_NoteDataEdit.GetNumTracks());
 
-  clipboardFullTiming =
-      GAMESTATE->m_pCurSong->m_SongTiming;  // always have a backup.
+  // clipboardFullTiming is static and only initialized with a backup the
+  // first time any ScreenEdit is created, so it persists useful data.
+  if (clipboard_full_timing == nullptr) {
+    clipboardFullTiming = GAMESTATE->m_pCurSong->m_SongTiming;
+  }
   clipboard_full_timing = &clipboardFullTiming;
 
-  m_bHasUndo = false;
-  m_Undo.SetNumTracks(m_NoteDataEdit.GetNumTracks());
+  ClearUndo();
 
   SetDirty(m_NoteDataEdit.IsEmpty());  // require saving if empty.
   if (GAMESTATE->m_pCurSong->WasLoadedFromAutosave()) {
@@ -1957,6 +2195,9 @@ ScreenEdit::~ScreenEdit() {
   LOG->Trace("ScreenEdit::~ScreenEdit()");
   m_pSoundMusic->StopPlaying();
 
+  // Blocks until the analysis thread notices it should stop.
+  RageUtil::SafeDelete(m_pTempoDetector);
+
   // Go back to Step Timing on leave.
   GAMESTATE->m_bIsUsingStepTiming = true;
   // DEFINITELY reset the InStepEditor variable.
@@ -2019,6 +2260,28 @@ void ScreenEdit::EditMiniMenu(
 
 void ScreenEdit::Update(float fDeltaTime) {
   m_PlayerStateEdit.Update(fDeltaTime);
+
+  if (m_bMouseDragging) {
+    m_fMouseDragCurrentX = GetMouseScreenX();
+    m_fMouseDragCurrentY = GetMouseScreenY();
+  }
+
+  if (m_pTempoDetector != nullptr) {
+    if (m_pTempoDetector->IsFinished()) {
+      m_TempoResults = m_pTempoDetector->GetResults();
+      RageUtil::SafeDelete(m_pTempoDetector);
+      if (m_TempoResults.empty()) {
+        SCREENMAN->SystemMessage(DETECT_BPM_NO_RESULTS);
+      }
+      DisplayAdjustSyncMenu();
+    } else {
+      std::string sProgress = m_pTempoDetector->GetProgress();
+      if (sProgress != m_sTempoProgress) {
+        m_sTempoProgress = sProgress;
+        SCREENMAN->SystemMessage(sProgress);
+      }
+    }
+  }
 
   const float fRate = PREFSMAN->m_bRateModsAffectTweens
                           ? GAMESTATE->m_SongOptions.GetCurrent().m_fMusicRate
@@ -2151,17 +2414,25 @@ void ScreenEdit::Update(float fDeltaTime) {
     ScreenWithMenuElements::Update(fDeltaTime);
   }
 
-  // Update trailing beat
+  // Update trailing beat. Only speed up the catch-up once acceleration is
+  // more than halfway to its max, so ordinary scrolling keeps its normal
+  // ease instead of visibly crawling only after a heavy accelerated burst.
+  const float fCatchUpMultiplier =
+      m_fScrollAccelerationMultiplier > (MAX_SCROLL_ACCELERATION_MULTIPLIER / 2)
+          ? m_fScrollAccelerationMultiplier
+          : 1.0f;
   float fDelta = GetBeat() - m_fTrailingBeat;
   if (std::abs(fDelta) < 10) {
     fapproach(
         m_fTrailingBeat, GetBeat(),
-        fDeltaTime * 40 /
+        fCatchUpMultiplier * fDeltaTime * 40 /
             m_NoteFieldEdit.GetPlayerState()
                 ->m_PlayerOptions.GetCurrent()
                 .m_fScrollSpeed);
   } else {
-    fapproach(m_fTrailingBeat, GetBeat(), std::abs(fDelta) * fDeltaTime * 5);
+    fapproach(
+        m_fTrailingBeat, GetBeat(),
+        fCatchUpMultiplier * std::abs(fDelta) * fDeltaTime * 5);
   }
 
   PlayTicks();
@@ -2534,6 +2805,118 @@ void ScreenEdit::DrawPrimitives() {
   GAMESTATE->m_Position.m_fSongBeat = fGameSongBeat;  // restore real song beat
   GAMESTATE->m_Position.m_fSongBeatNoOffset = fGameSongBeatNoOffset;
   GAMESTATE->m_Position.m_fSongBeatVisible = fGameSongBeatVisible;
+
+  if (m_bMouseDragging) {
+    m_rectMouseSelection.StretchTo(RectF(
+        std::min(m_fMouseDragStartX, m_fMouseDragCurrentX),
+        std::min(m_fMouseDragStartY, m_fMouseDragCurrentY),
+        std::max(m_fMouseDragStartX, m_fMouseDragCurrentX),
+        std::max(m_fMouseDragStartY, m_fMouseDragCurrentY)));
+    m_rectMouseSelection.SetDiffuse(RageColor(0.6f, 0.8f, 1.0f, 0.25f));
+    m_rectMouseSelection.Draw();
+  }
+}
+
+static bool IsShiftHeld() {
+  return INPUTFILTER->IsBeingPressed(
+             DeviceInput(DEVICE_KEYBOARD, KEY_LSHIFT)) ||
+         INPUTFILTER->IsBeingPressed(DeviceInput(DEVICE_KEYBOARD, KEY_RSHIFT));
+}
+
+void ScreenEdit::FinishMouseDragSelection() {
+  /*
+   * Treat a tiny movement as a click rather than a drag.
+   */
+  if (std::abs(m_fMouseDragCurrentY - m_fMouseDragStartY) < 4.0f) {
+    m_NoteFieldEdit.m_iBeginMarker = -1;
+    m_NoteFieldEdit.m_iEndMarker = -1;
+    return;
+  }
+
+  /*
+   * Convert the top and bottom of the physical selection rectangle into
+   * the beats actually visible underneath those screen positions.
+   *
+   * MouseYToBeat() uses m_fTrailingBeat, so this follows scrolling and
+   * corresponds to the arrows the user currently sees.
+   */
+  float fStartBeat =
+      MouseYToBeat(std::min(m_fMouseDragStartY, m_fMouseDragCurrentY));
+
+  float fEndBeat =
+      MouseYToBeat(std::max(m_fMouseDragStartY, m_fMouseDragCurrentY));
+
+  /*
+   * Reverse scroll or other display conditions can cause the visual
+   * direction and beat direction to disagree, so normalize them.
+   */
+  if (fStartBeat > fEndBeat) {
+    std::swap(fStartBeat, fEndBeat);
+  }
+
+  int iStartRow = std::max(0, BeatToNoteRow(fStartBeat));
+
+  int iEndRow = std::max(0, BeatToNoteRow(fEndBeat));
+
+  if (IsShiftHeld()) {
+    /*
+     * Shift + drag:
+     *
+     * Snap the bounds to the player's currently selected editor quant.
+     *
+     * For example, if the editor is currently on 16ths, both ends of the
+     * selected area will land on 16th-note boundaries.
+     */
+    const float fSnap = NoteTypeToBeat(m_SnapDisplay.GetNoteType());
+
+    iStartRow = std::max(0, BeatToNoteRow(Quantize(fStartBeat, fSnap)));
+
+    iEndRow = std::max(0, BeatToNoteRow(Quantize(fEndBeat, fSnap)));
+  } else {
+    /*
+     * Normal drag:
+     *
+     * The raw rectangle may start/end between arrows.  Tighten the
+     * selection so its bounds become the first and last actual arrows
+     * covered by the rectangle.
+     */
+    int iFirstNote = iStartRow - 1;
+    int iLastNote = iEndRow + 1;
+
+    const bool bHasFirst =
+        m_NoteDataEdit.GetNextTapNoteRowForAllTracks(iFirstNote) &&
+        iFirstNote <= iEndRow;
+
+    const bool bHasLast =
+        m_NoteDataEdit.GetPrevTapNoteRowForAllTracks(iLastNote) &&
+        iLastNote >= iStartRow;
+
+    if (bHasFirst && bHasLast && iFirstNote <= iLastNote) {
+      iStartRow = iFirstNote;
+      iEndRow = iLastNote;
+    } else {
+      /*
+       * There were no valid arrows inside the dragged rectangle.
+       */
+      m_NoteFieldEdit.m_iBeginMarker = -1;
+      m_NoteFieldEdit.m_iEndMarker = -1;
+      return;
+    }
+  }
+
+  /*
+   * ScreenEdit expects an actual region with separate begin/end markers.
+   */
+  if (iStartRow >= iEndRow) {
+    m_NoteFieldEdit.m_iBeginMarker = -1;
+    m_NoteFieldEdit.m_iEndMarker = -1;
+    return;
+  }
+
+  m_NoteFieldEdit.m_iBeginMarker = iStartRow;
+  m_NoteFieldEdit.m_iEndMarker = iEndRow;
+
+  m_soundMarker.Play(true);
 }
 
 bool ScreenEdit::Input(const InputEventPlus& input) {
@@ -2549,9 +2932,99 @@ bool ScreenEdit::Input(const InputEventPlus& input) {
     return false;
   }
 
+  if (m_EditState == STATE_EDITING &&
+      input.DeviceI == DeviceInput(DEVICE_MOUSE, MOUSE_LEFT)) {
+    if (input.type == IET_FIRST_PRESS) {
+      m_bMouseDragging = true;
+      m_fMouseDragStartX = m_fMouseDragCurrentX = GetMouseScreenX();
+      m_fMouseDragStartY = m_fMouseDragCurrentY = GetMouseScreenY();
+      return true;
+    }
+    if (input.type == IET_RELEASE && m_bMouseDragging) {
+      m_bMouseDragging = false;
+      FinishMouseDragSelection();
+      return true;
+    }
+  }
+
   EditButton EditB = DeviceToEdit(input.DeviceI);
   if (EditB == EditButton_Invalid) {
     EditB = MenuButtonToEditButton(input.MenuI);
+  }
+
+  // Allow mouse wheel chart navigation in edit mode by mapping to existing
+  // scroll actions.
+  if (EditB == EditButton_Invalid && m_EditState == STATE_EDITING) {
+    const bool bCtrlHeld =
+        INPUTFILTER->IsBeingPressed(DeviceInput(DEVICE_KEYBOARD, KEY_LCTRL)) ||
+        INPUTFILTER->IsBeingPressed(DeviceInput(DEVICE_KEYBOARD, KEY_RCTRL));
+    const bool bShiftHeld =
+        INPUTFILTER->IsBeingPressed(DeviceInput(DEVICE_KEYBOARD, KEY_LSHIFT)) ||
+        INPUTFILTER->IsBeingPressed(DeviceInput(DEVICE_KEYBOARD, KEY_RSHIFT));
+    const bool bWheelUp =
+        input.DeviceI == DeviceInput(DEVICE_MOUSE, MOUSE_WHEELUP);
+    const bool bWheelDown =
+        input.DeviceI == DeviceInput(DEVICE_MOUSE, MOUSE_WHEELDOWN);
+
+    if ((bWheelUp || bWheelDown) && input.type != IET_RELEASE) {
+      // Track consecutive wheel scrolls so rapid wheeling ramps up faster
+      // than the key-repeat rate of holding a key down.
+      if (m_LastWheelScrollTime.Ago() > SCROLL_ACCELERATION_RESET_TIME) {
+        m_iConsecutiveWheelScrolls = 0;
+        m_fScrollAccelerationMultiplier = 1.0f;
+      }
+      m_iConsecutiveWheelScrolls++;
+      const float fAccelerationRate = SCROLL_WHEEL_ACCELERATION_RATE.GetValue();
+      m_fScrollAccelerationMultiplier =
+          1.0f + (static_cast<float>(m_iConsecutiveWheelScrolls - 1) *
+                  fAccelerationRate);
+      // Cap so a long scroll burst can't fling the cursor across the chart.
+      m_fScrollAccelerationMultiplier = std::min(
+          m_fScrollAccelerationMultiplier, MAX_SCROLL_ACCELERATION_MULTIPLIER);
+      m_LastWheelScrollTime.Touch();
+
+      if (bCtrlHeld) {
+        // CTRL+wheel mirrors CTRL+Up/Down (scroll-speed presets), but jumps
+        // multiple presets per tick as the wheel accelerates, since it's much
+        // slower to get through the presets via key-repeat alone.
+        PlayerState* pPlayerState =
+            const_cast<PlayerState*>(m_NoteFieldEdit.GetPlayerState());
+        float fScrollSpeed =
+            pPlayerState->m_PlayerOptions.GetSong().m_fScrollSpeed;
+
+        int iSpeed = 0;
+        for (size_t i = 0; i < m_vScrollSpeedPresets.size(); ++i) {
+          if (m_vScrollSpeedPresets[i] == fScrollSpeed) {
+            iSpeed = static_cast<int>(i);
+            break;
+          }
+        }
+
+        const int iBaseDirection = bWheelUp ? +1 : -1;
+        const int iDirection =
+            INVERT_SCROLL_BUTTONS ? -iBaseDirection : iBaseDirection;
+        const int iSteps = std::max(
+            1, static_cast<int>(std::lround(m_fScrollAccelerationMultiplier)));
+        iSpeed = std::clamp(
+            iSpeed + iDirection * iSteps, 0,
+            (int)m_vScrollSpeedPresets.size() - 1);
+
+        if (m_vScrollSpeedPresets[iSpeed] != fScrollSpeed) {
+          m_soundMarker.Play(true);
+          fScrollSpeed = m_vScrollSpeedPresets[iSpeed];
+        }
+
+        PO_GROUP_ASSIGN(
+            pPlayerState->m_PlayerOptions, ModsLevel_Song, m_fScrollSpeed,
+            fScrollSpeed);
+        return true;
+      }
+
+      EditB = bWheelUp ? (bShiftHeld ? EDIT_BUTTON_SCROLL_UP_PAGE
+                                     : EDIT_BUTTON_SCROLL_UP_LINE)
+                       : (bShiftHeld ? EDIT_BUTTON_SCROLL_DOWN_PAGE
+                                     : EDIT_BUTTON_SCROLL_DOWN_LINE);
+    }
   }
 
   if (EditB == EDIT_BUTTON_REMOVE_NOTE) {
@@ -2598,8 +3071,6 @@ static LocalizedString ALTER_MENU_NO_SELECTION(
 static LocalizedString SWITCHED_TO("ScreenEdit", "Switched to");
 static LocalizedString NO_BACKGROUNDS_AVAILABLE(
     "ScreenEdit", "No backgrounds available");
-static ThemeMetric<bool> INVERT_SCROLL_BUTTONS(
-    "ScreenEdit", "InvertScrollSpeedButtons");
 
 bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
   if (input.type == IET_RELEASE) {
@@ -2650,7 +3121,7 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
       if (m_NoteDataEdit.IsHoldNoteAtRow(iCol, iSongIndex, &iHeadRow)) {
         m_soundRemoveNote.Play(true);
         SetDirty(true);
-        SaveUndo();
+        SaveUndo("Remove Hold");
         m_NoteDataEdit.SetTapNote(iCol, iHeadRow, TAP_EMPTY);
         // Don't CheckNumberOfNotesAndUndo.  We don't want to revert any change
         // that removes notes.
@@ -2659,7 +3130,7 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
           TapNoteType_Empty) {
         m_soundRemoveNote.Play(true);
         SetDirty(true);
-        SaveUndo();
+        SaveUndo("Remove Note");
         m_NoteDataEdit.SetTapNote(iCol, iSongIndex, TAP_EMPTY);
         // Don't CheckNumberOfNotesAndUndo.  We don't want to revert any change
         // that removes notes.
@@ -2669,7 +3140,7 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
       } else {
         m_soundAddNote.Play(true);
         SetDirty(true);
-        SaveUndo();
+        SaveUndo("Place Note");
         TapNote tn = m_selectedTap;
         tn.pn = m_InputPlayerNumber;
         m_NoteDataEdit.SetTapNote(iCol, iSongIndex, tn);
@@ -2733,11 +3204,10 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
       float fScrollSpeed =
           pPlayerState->m_PlayerOptions.GetSong().m_fScrollSpeed;
 
-      const float fSpeeds[] = {1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, 8.0f};
       int iSpeed = 0;
-      for (unsigned i = 0; i < ARRAYLEN(fSpeeds); ++i) {
-        if (fSpeeds[i] == fScrollSpeed) {
-          iSpeed = i;
+      for (size_t i = 0; i < m_vScrollSpeedPresets.size(); ++i) {
+        if (m_vScrollSpeedPresets[i] == fScrollSpeed) {
+          iSpeed = static_cast<int>(i);
           break;
         }
       }
@@ -2751,11 +3221,11 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
           INVERT_SCROLL_BUTTONS ? --iSpeed : ++iSpeed;
           break;
       }
-      iSpeed = std::clamp(iSpeed, 0, (int)ARRAYLEN(fSpeeds) - 1);
+      iSpeed = std::clamp(iSpeed, 0, (int)m_vScrollSpeedPresets.size() - 1);
 
-      if (fSpeeds[iSpeed] != fScrollSpeed) {
+      if (m_vScrollSpeedPresets[iSpeed] != fScrollSpeed) {
         m_soundMarker.Play(true);
-        fScrollSpeed = fSpeeds[iSpeed];
+        fScrollSpeed = m_vScrollSpeedPresets[iSpeed];
       }
 
       PO_GROUP_ASSIGN(
@@ -2800,6 +3270,13 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
             fBeatsToMove *= -1;
           }
           break;
+      }
+
+      // Apply scroll acceleration multiplier for LINE scrolls (mouse wheel)
+      if ((EditB == EDIT_BUTTON_SCROLL_UP_LINE ||
+           EditB == EDIT_BUTTON_SCROLL_DOWN_LINE) &&
+          m_fScrollAccelerationMultiplier > 1.0f) {
+        fBeatsToMove *= m_fScrollAccelerationMultiplier;
       }
 
       if (m_PlayerStateEdit.m_PlayerOptions.GetSong()
@@ -2895,7 +3372,7 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
       g_AreaMenu.rows[paste_at_current_beat].bEnabled = !m_Clipboard.IsEmpty();
       g_AreaMenu.rows[paste_at_begin_marker].bEnabled =
           !m_Clipboard.IsEmpty() != 0 && m_NoteFieldEdit.m_iBeginMarker != -1;
-      g_AreaMenu.rows[undo].bEnabled = m_bHasUndo;
+      g_AreaMenu.rows[undo].bEnabled = !m_UndoStack.empty();
       EditMiniMenu(&g_AreaMenu, SM_BackFromAreaMenu);
     }
       return true;
@@ -2973,6 +3450,7 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
       GAMESTATE->m_pCurSteps[PLAYER_1].Set(pSteps);
       m_pSteps = pSteps;
       pSteps->GetNoteData(m_NoteDataEdit);
+      m_NoteFieldEdit.LoadWaveform(pSteps->GetMusicPath());
 
       std::string s = ssprintf(
           (SWITCHED_TO.GetValue() + " %s %s '%s' (%d of %d)").c_str(),
@@ -3645,6 +4123,26 @@ bool ScreenEdit::InputEdit(const InputEventPlus& input, EditButton EditB) {
       Undo();
       return true;
 
+    case EDIT_BUTTON_REDO:
+      Redo();
+      return true;
+
+    case EDIT_BUTTON_CUT:
+      CutSelectionToClipboard(IsShiftHeld());
+      return true;
+
+    case EDIT_BUTTON_COPY:
+      CopySelectionToClipboard(IsShiftHeld());
+      return true;
+
+    case EDIT_BUTTON_PASTE:
+      PasteClipboardAtCurrentBeat(IsShiftHeld());
+      return true;
+
+    case EDIT_BUTTON_TOGGLE_WAVEFORM:
+      ToggleWaveform();
+      return true;
+
     case EDIT_BUTTON_SWITCH_PLAYERS:
       if (m_InputPlayerNumber == PLAYER_INVALID) {
         return false;
@@ -3894,7 +4392,7 @@ void ScreenEdit::TransitionEditState(EditState em) {
         if (!GAMESTATE->m_bIsUsingStepTiming) {
           GAMESTATE->m_pCurSteps[PLAYER_1]->m_Timing = backupStepTiming;
         }
-        SaveUndo();
+        SaveUndo("Record");
 
         // delete old TapNotes in the range
         m_NoteDataEdit.ClearRange(m_iStartPlayingAt, m_iStopPlayingAt);
@@ -4231,6 +4729,10 @@ void ScreenEdit::HandleScreenMessage(const ScreenMessage SM) {
     HandleTimingDataChangeChoice(
         (TimingDataChangeChoice)ScreenMiniMenu::s_iLastRowCode,
         ScreenMiniMenu::s_viLastAnswers);
+  } else if (SM == SM_BackFromAdjustSyncMenu) {
+    if (!ScreenMiniMenu::s_bCancelled) {
+      HandleAdjustSyncMenuChoice(ScreenMiniMenu::s_iLastRowCode);
+    }
   } else if (SM == SM_BackFromDifficultyMeterChange) {
     int i = StringToInt(ScreenTextEntry::s_sLastAnswer);
     GAMESTATE->m_pCurSteps[PLAYER_1]->SetMeter(i);
@@ -4505,7 +5007,7 @@ void ScreenEdit::HandleScreenMessage(const ScreenMessage SM) {
         sMods, g_fLastInsertAttackDurationSeconds, -1);
     tn.pn = m_InputPlayerNumber;
     SetDirty(true);
-    SaveUndo();
+    SaveUndo("Add Attack");
     m_NoteDataEdit.SetTapNote(g_iLastInsertTapAttackTrack, row, tn);
     CheckNumberOfNotesAndUndo();
   } else if (
@@ -4766,14 +5268,14 @@ void ScreenEdit::HandleScreenMessage(const ScreenMessage SM) {
     }
   } else if (SM == SM_DoRevertToLastSave) {
     if (ScreenPrompt::s_LastAnswer == ANSWER_YES) {
-      SaveUndo();
+      SaveUndo("Revert to Last Save");
       CopyFromLastSave();
       m_pSteps->GetNoteData(m_NoteDataEdit);
       SetDirty(false);
     }
   } else if (SM == SM_DoRevertFromDisk) {
     if (ScreenPrompt::s_LastAnswer == ANSWER_YES) {
-      SaveUndo();
+      SaveUndo("Revert From Disk");
       RevertFromDisk();
       m_pSteps->GetNoteData(m_NoteDataEdit);
       SetDirty(false);
@@ -4785,7 +5287,7 @@ void ScreenEdit::HandleScreenMessage(const ScreenMessage SM) {
     }
   } else if (SM == SM_DoEraseStepTiming) {
     if (ScreenPrompt::s_LastAnswer == ANSWER_YES) {
-      SaveUndo();
+      SaveUndo("Erase Step Timing");
       m_pSteps->m_Timing.Clear();
       SetDirty(true);
     }
@@ -5223,6 +5725,98 @@ void ScreenEdit::DisplayTimingChangeMenu() {
       &g_TimingDataChangeInformation, SM_BackFromTimingDataChangeInformation);
 }
 
+static LocalizedString FIND_BPM("ScreenEdit", "Find BPM");
+static LocalizedString APPLY_SYNC("ScreenEdit", "Apply Sync #%d");
+static LocalizedString SYNC_OFFSET("ScreenEdit", "Offset");
+static LocalizedString SYNC_BPM("ScreenEdit", "BPM");
+static LocalizedString SYNC_NO_RESULTS("ScreenEdit", "Apply Sync");
+
+void ScreenEdit::DisplayAdjustSyncMenu() {
+  g_AdjustSyncMenu.rows.clear();
+
+  g_AdjustSyncMenu.rows.push_back(MenuRowDef(
+      adjust_sync_find_bpm, FIND_BPM, m_pTempoDetector == nullptr,
+      EditMode_Full, false, false, 0, nullptr));
+
+  if (m_TempoResults.empty()) {
+    // Nothing has been detected yet, so there is nothing to apply.
+    g_AdjustSyncMenu.rows.push_back(MenuRowDef(
+        adjust_sync_readonly, SYNC_NO_RESULTS, false, EditMode_Full, false,
+        false, 0, nullptr));
+    g_AdjustSyncMenu.rows.push_back(MenuRowDef(
+        adjust_sync_readonly, SYNC_OFFSET, false, EditMode_Full, false, false,
+        0, "---"));
+    g_AdjustSyncMenu.rows.push_back(MenuRowDef(
+        adjust_sync_readonly, SYNC_BPM, false, EditMode_Full, false, false, 0,
+        "---"));
+  } else {
+    for (size_t i = 0; i < m_TempoResults.size(); ++i) {
+      const TempoResult& result = m_TempoResults[i];
+
+      MenuRowDef apply(
+          adjust_sync_apply + (int)i,
+          ssprintf(APPLY_SYNC.GetValue().c_str(), (int)i + 1), true,
+          EditMode_Full, false, false, 0, nullptr);
+      apply.SetOneUnthemedChoice(ssprintf("%.0f%%", result.fitness * 100));
+      g_AdjustSyncMenu.rows.push_back(apply);
+
+      MenuRowDef offset(
+          adjust_sync_readonly, SYNC_OFFSET, false, EditMode_Full, false, false,
+          0, nullptr);
+      offset.SetOneUnthemedChoice(ssprintf("%+.3f", result.offset));
+      g_AdjustSyncMenu.rows.push_back(offset);
+
+      MenuRowDef bpm(
+          adjust_sync_readonly, SYNC_BPM, false, EditMode_Full, false, false, 0,
+          nullptr);
+      bpm.SetOneUnthemedChoice(ssprintf("%.3f", result.bpm));
+      g_AdjustSyncMenu.rows.push_back(bpm);
+    }
+  }
+
+  EditMiniMenu(&g_AdjustSyncMenu, SM_BackFromAdjustSyncMenu);
+}
+
+void ScreenEdit::StartTempoDetection() {
+  if (m_pTempoDetector != nullptr) {
+    return;
+  }
+
+  std::string sError;
+  m_pTempoDetector = TempoDetector::Create(m_pSteps->GetMusicPath(), sError);
+  if (m_pTempoDetector == nullptr) {
+    SCREENMAN->SystemMessage(
+        ssprintf(DETECT_BPM_FAILED.GetValue().c_str(), sError.c_str()));
+    SCREENMAN->PlayInvalidSound();
+    return;
+  }
+
+  m_TempoResults.clear();
+  m_sTempoProgress.clear();
+  SCREENMAN->SystemMessage(DETECTING_BPM);
+}
+
+void ScreenEdit::HandleAdjustSyncMenuChoice(int iRowCode) {
+  if (iRowCode == adjust_sync_find_bpm) {
+    StartTempoDetection();
+    return;
+  }
+
+  const int iResult = iRowCode - adjust_sync_apply;
+  if (iResult < 0 || iResult >= (int)m_TempoResults.size()) {
+    return;
+  }
+
+  const TempoResult& result = m_TempoResults[iResult];
+  TimingData& timing = GetAppropriateTimingForUpdate();
+  timing.m_fBeat0OffsetInSeconds = (float)result.offset;
+  timing.AddSegment(BPMSegment(0, (float)result.bpm));
+
+  SetDirty(true);
+  SCREENMAN->SystemMessage(
+      ssprintf(APPLIED_SYNC.GetValue().c_str(), result.bpm, result.offset));
+}
+
 // End helper functions
 
 static LocalizedString REVERT_LAST_SAVE(
@@ -5473,6 +6067,9 @@ void ScreenEdit::HandleMainMenuChoice(
     case edit_timing_data: {
       DisplayTimingMenu();
     } break;
+    case adjust_sync: {
+      DisplayAdjustSyncMenu();
+    } break;
 
     case play_preview_music:
       PlayPreviewMusic();
@@ -5602,7 +6199,7 @@ void ScreenEdit::HandleAlterMenuChoice(
   }
 
   if (bSaveUndo) {
-    SaveUndo();
+    SaveUndo(g_AlterMenu.rows[c].sName);
   }
 
   switch (c) {
@@ -6077,7 +6674,7 @@ void ScreenEdit::HandleAreaMenuChoice(
   }
 
   if (bSaveUndo) {
-    SaveUndo();
+    SaveUndo(g_AreaMenu.rows[c].sName);
   }
 
   switch (c) {
@@ -6797,32 +7394,177 @@ void ScreenEdit::RevertFromDisk() {
   }
   GAMESTATE->m_pCurSteps[PLAYER_1].Set(pNewSteps);
   m_pSteps = pNewSteps;
+  m_NoteFieldEdit.LoadWaveform(m_pSteps->GetMusicPath());
 
   CopyToLastSave();
   SetDirty(false);
   SONGMAN->Invalidate(GAMESTATE->m_pCurSong);
 }
 
-void ScreenEdit::SaveUndo() {
-  m_bHasUndo = true;
-  m_Undo.CopyAll(m_NoteDataEdit);
+void ScreenEdit::SaveUndo(const std::string& sDescription) {
+  UndoState state;
+  state.m_NoteData.CopyAll(m_NoteDataEdit);
+  state.m_sDescription = sDescription;
+  m_UndoStack.push_back(state);
+  if (m_UndoStack.size() > MAX_UNDO_STATES) {
+    m_UndoStack.erase(m_UndoStack.begin());
+  }
+  // A new action invalidates any history that was previously undone.
+  m_RedoStack.clear();
 }
 
-static LocalizedString UNDO("ScreenEdit", "Undo");
+static LocalizedString UNDO("ScreenEdit", "Undo - %s");
 static LocalizedString CANT_UNDO("ScreenEdit", "Can't undo - no undo data.");
 void ScreenEdit::Undo() {
-  if (m_bHasUndo) {
-    std::swap(m_Undo, m_NoteDataEdit);
-    SCREENMAN->SystemMessage(UNDO);
+  if (!m_UndoStack.empty()) {
+    UndoState redoState;
+    redoState.m_NoteData.CopyAll(m_NoteDataEdit);
+    redoState.m_sDescription = m_UndoStack.back().m_sDescription;
+
+    const std::string sDescription = m_UndoStack.back().m_sDescription;
+    m_NoteDataEdit.CopyAll(m_UndoStack.back().m_NoteData);
+    m_UndoStack.pop_back();
+
+    m_RedoStack.push_back(redoState);
+    if (m_RedoStack.size() > MAX_UNDO_STATES) {
+      m_RedoStack.erase(m_RedoStack.begin());
+    }
+
+    SCREENMAN->SystemMessage(
+        ssprintf(UNDO.GetValue().c_str(), sDescription.c_str()));
   } else {
     SCREENMAN->SystemMessage(CANT_UNDO);
     SCREENMAN->PlayInvalidSound();
   }
 }
 
+static LocalizedString REDO("ScreenEdit", "Redo - %s");
+static LocalizedString CANT_REDO("ScreenEdit", "Can't redo - no redo data.");
+void ScreenEdit::Redo() {
+  if (!m_RedoStack.empty()) {
+    UndoState undoState;
+    undoState.m_NoteData.CopyAll(m_NoteDataEdit);
+    undoState.m_sDescription = m_RedoStack.back().m_sDescription;
+
+    const std::string sDescription = m_RedoStack.back().m_sDescription;
+    m_NoteDataEdit.CopyAll(m_RedoStack.back().m_NoteData);
+    m_RedoStack.pop_back();
+
+    m_UndoStack.push_back(undoState);
+    if (m_UndoStack.size() > MAX_UNDO_STATES) {
+      m_UndoStack.erase(m_UndoStack.begin());
+    }
+
+    SCREENMAN->SystemMessage(
+        ssprintf(REDO.GetValue().c_str(), sDescription.c_str()));
+  } else {
+    SCREENMAN->SystemMessage(CANT_REDO);
+    SCREENMAN->PlayInvalidSound();
+  }
+}
+
 void ScreenEdit::ClearUndo() {
-  m_bHasUndo = false;
-  m_Undo.ClearAll();
+  m_UndoStack.clear();
+  m_RedoStack.clear();
+}
+
+static LocalizedString NOTHING_SELECTED(
+    "ScreenEdit", "Nothing selected - use Select an area first.");
+static LocalizedString CUT_TO_CLIPBOARD(
+    "ScreenEdit", "Cut - Selection moved to clipboard.");
+static LocalizedString COPY_TO_CLIPBOARD(
+    "ScreenEdit", "Copy - Selection copied to clipboard.");
+static LocalizedString CLIPBOARD_EMPTY(
+    "ScreenEdit", "Clipboard is empty - nothing to paste.");
+static LocalizedString PASTE_FROM_CLIPBOARD(
+    "ScreenEdit", "Paste - Clipboard pasted at current beat.");
+
+static LocalizedString CUT_WITH_TIMING(
+    "ScreenEdit", "Cut - Selection and timing cut to clipboard.");
+static LocalizedString COPY_WITH_TIMING(
+    "ScreenEdit", "Copy - Selection and timing copied to clipboard.");
+static LocalizedString PASTE_WITH_TIMING(
+    "ScreenEdit", "Paste - Clipboard and timing pasted at current beat.");
+
+// Moves the timing segments covering the current selection in or out of the
+// timing clipboard.
+void ScreenEdit::CutSelectionToClipboard(bool bIncludeTiming) {
+  if (m_NoteFieldEdit.m_iBeginMarker == -1 ||
+      m_NoteFieldEdit.m_iEndMarker == -1) {
+    SCREENMAN->SystemMessage(NOTHING_SELECTED);
+    SCREENMAN->PlayInvalidSound();
+    return;
+  }
+
+  const int iBegin = m_NoteFieldEdit.m_iBeginMarker;
+  const int iEnd = m_NoteFieldEdit.m_iEndMarker;
+
+  if (bIncludeTiming) {
+    clipboardFullTiming.Clear();
+    GetAppropriateTiming().CopyRange(
+        iBegin, iEnd, TimingSegmentType_Invalid, 0, clipboardFullTiming);
+  }
+  s_bClipboardHasTiming = bIncludeTiming;
+
+  HandleAlterMenuChoice(cut);
+
+  if (bIncludeTiming) {
+    GetAppropriateTimingForUpdate().ClearRange(
+        iBegin, iEnd, TimingSegmentType_Invalid);
+    SetDirty(true);
+  }
+
+  SCREENMAN->SystemMessage(bIncludeTiming ? CUT_WITH_TIMING : CUT_TO_CLIPBOARD);
+}
+
+void ScreenEdit::CopySelectionToClipboard(bool bIncludeTiming) {
+  if (m_NoteFieldEdit.m_iBeginMarker == -1 ||
+      m_NoteFieldEdit.m_iEndMarker == -1) {
+    SCREENMAN->SystemMessage(NOTHING_SELECTED);
+    SCREENMAN->PlayInvalidSound();
+    return;
+  }
+
+  if (bIncludeTiming) {
+    clipboardFullTiming.Clear();
+    GetAppropriateTiming().CopyRange(
+        m_NoteFieldEdit.m_iBeginMarker, m_NoteFieldEdit.m_iEndMarker,
+        TimingSegmentType_Invalid, 0, clipboardFullTiming);
+  }
+  s_bClipboardHasTiming = bIncludeTiming;
+
+  HandleAlterMenuChoice(copy);
+  SCREENMAN->SystemMessage(
+      bIncludeTiming ? COPY_WITH_TIMING : COPY_TO_CLIPBOARD);
+}
+
+void ScreenEdit::PasteClipboardAtCurrentBeat(bool bIncludeTiming) {
+  if (m_Clipboard.IsEmpty()) {
+    SCREENMAN->SystemMessage(CLIPBOARD_EMPTY);
+    SCREENMAN->PlayInvalidSound();
+    return;
+  }
+
+  HandleAreaMenuChoice(paste_at_current_beat);
+
+  const bool bPastedTiming = bIncludeTiming && s_bClipboardHasTiming;
+  if (bPastedTiming) {
+    clipboardFullTiming.CopyRange(
+        0, MAX_NOTE_ROW, TimingSegmentType_Invalid, GetRow(),
+        GetAppropriateTimingForUpdate());
+    SetDirty(true);
+  }
+
+  SCREENMAN->SystemMessage(
+      bPastedTiming ? PASTE_WITH_TIMING : PASTE_FROM_CLIPBOARD);
+}
+
+static LocalizedString WAVEFORM_SHOWN("ScreenEdit", "Waveform - Shown.");
+static LocalizedString WAVEFORM_HIDDEN("ScreenEdit", "Waveform - Hidden.");
+void ScreenEdit::ToggleWaveform() {
+  const bool bShow = !m_NoteFieldEdit.GetShowWaveform();
+  m_NoteFieldEdit.SetShowWaveform(bShow);
+  SCREENMAN->SystemMessage(bShow ? WAVEFORM_SHOWN : WAVEFORM_HIDDEN);
 }
 
 static LocalizedString CREATES_MORE_THAN_NOTES(
@@ -6856,11 +7598,16 @@ void ScreenEdit::CheckNumberOfNotesAndUndo() {
      * Delete Beat to pull back the notes that are already past the end.
      */
     float fNewLastBeat = m_NoteDataEdit.GetLastBeat();
-    bool bLastBeatIncreased = fNewLastBeat > m_Undo.GetLastBeat();
+    float fPreviousLastBeat =
+        m_UndoStack.empty() ? 0.f : m_UndoStack.back().m_NoteData.GetLastBeat();
+    bool bLastBeatIncreased = fNewLastBeat > fPreviousLastBeat;
     bool bPassedTheEnd = fNewLastBeat > GetMaximumBeatForNewNote();
     if (bLastBeatIncreased && bPassedTheEnd) {
       Undo();
-      m_bHasUndo = false;
+      // The reverted state is invalid; don't let it be reached via Redo.
+      if (!m_RedoStack.empty()) {
+        m_RedoStack.pop_back();
+      }
       std::string sError = CREATES_NOTES_PAST_END.GetValue() + "\n\n" +
                            CHANGE_REVERTED.GetValue();
       ScreenPrompt::Prompt(SM_None, sError);
@@ -6995,6 +7742,11 @@ static const EditHelpLine g_EditHelpLines[] = {
     EditHelpLine("Add to/remove from right half", EDIT_BUTTON_RIGHT_SIDE),
     EditHelpLine("Switch Timing", EDIT_BUTTON_SWITCH_TIMINGS),
     EditHelpLine("Switch player (Routine only)", EDIT_BUTTON_SWITCH_PLAYERS),
+    EditHelpLine("Undo/Redo", EDIT_BUTTON_UNDO, EDIT_BUTTON_REDO),
+    EditHelpLine(
+        "Cut/Copy selection to clipboard", EDIT_BUTTON_CUT, EDIT_BUTTON_COPY),
+    EditHelpLine("Paste from clipboard", EDIT_BUTTON_PASTE),
+    EditHelpLine("Toggle waveform display", EDIT_BUTTON_TOGGLE_WAVEFORM),
 };
 
 static bool IsMapped(EditButton eb, const MapEditToDI& editmap) {

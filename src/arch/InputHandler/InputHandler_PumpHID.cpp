@@ -12,6 +12,7 @@
 #include "Game.h"
 #include "GameInput.h"
 #include "GameState.h"
+#include "InputFilter.h"
 #include "InputMapper.h"
 #include "LightsManager.h"
 #include "PrefsManager.h"
@@ -23,10 +24,6 @@
 #include "arch/Lights/LightsDriver_Export.h"
 #include "archutils/Common/HidDevice.h"
 
-// all of the known device pid's that use this communication protocol.
-const std::vector<int> InputHandler_PumpHID::devPIDS = {
-    PUMPHID_PID_V1, PUMPHID_PID_V2};
-
 REGISTER_INPUT_HANDLER_CLASS(PumpHID);
 
 InputHandler_PumpHID::InputHandler_PumpHID() {
@@ -36,10 +33,6 @@ InputHandler_PumpHID::InputHandler_PumpHID() {
   memset(msg_from_device.raw_buff, PUMPHID_DEF_INPUT, sizeof(msg_from_device));
 
   m_bShutdown = false;
-
-  // ensure auto reconnect and blocking reads (since the device wants write/read
-  // cycles properly.)
-  dev = new HidDevice(PUMPHID_VID, devPIDS, PUMPHID_INTERFACE_NUM, true, false);
 
   if (IsConnected() && PREFSMAN->m_bThreadedInput) {
     InputThread.SetName("PumpHID thread");
@@ -57,7 +50,7 @@ InputHandler_PumpHID::~InputHandler_PumpHID() {
 
     // turn off all of the lights manually.
     memset(msg_to_device.raw_buff, PUMPHID_DEF_LIGHTS, sizeof(msg_to_device));
-    dev->Write(msg_to_device.raw_buff, PUMPHID_PAYLOADSIZE_TODEV);
+    dev.Write(msg_to_device.raw_buff, PUMPHID_PAYLOADSIZE_TODEV);
   }
 }
 
@@ -77,12 +70,66 @@ int InputHandler_PumpHID::InputThread_Start(void* p) {
   return 0;
 }
 
+void InputHandler_PumpHID::BroadcastFullSensorStateHelper(
+    PlayerNumber pn, uint8_t sensor_index, pumphid_player_byte_t state) {
+  PadSensor currSensor = PadSensor_TopCenter;
+
+  switch (sensor_index) {
+    case 0:
+      currSensor = PadSensor_RightCenter;
+      break;
+    case 1:
+      currSensor = PadSensor_LeftCenter;
+      break;
+    case 2:
+      currSensor = PadSensor_BottomCenter;
+      break;
+    case 3:
+      currSensor = PadSensor_TopCenter;
+      break;
+    default:
+      LOG->Warn("Invalid sensor position %d", sensor_index);
+      break;
+  }
+
+  // check to see which game we are running as it can change during gameplay.
+  const InputScheme* pInput = &GAMESTATE->GetCurrentGame()->m_InputScheme;
+  std::string sInputName = pInput->m_szName;
+
+  // all buttons here are active low, so set to zero when "true"
+  if (EqualsNoCase(sInputName, "dance")) {
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_Up, currSensor, !(state.btn_UL_U));
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_Down, currSensor, !(state.btn_UR_D));
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_Left, currSensor, !(state.btn_CN_L));
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_Right, currSensor, !(state.btn_LL_R));
+
+  } else if (EqualsNoCase(sInputName, "pump")) {
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_UpLeft, currSensor, !(state.btn_UL_U));
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_UpRight, currSensor, !(state.btn_UR_D));
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_Center, currSensor, !(state.btn_CN_L));
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_DownLeft, currSensor, !(state.btn_LL_R));
+    INPUTFILTER->setFullSensorStateBinary(
+        pn, PadPanel_DownRight, currSensor, !(state.btn_LR_START));
+  }
+}
+
 void InputHandler_PumpHID::InputThreadMain() {
   uint32_t newInput = 0;
-  LightsState newLS;
+  LightsState newLS = {};
 
   uint32_t prevInput = 0;
   LightsState prevLS = {};
+
+  pumphid_player_byte_t prev_p1_sensor[PUMP_HID_NUMOFSENSORS] = {};
+  pumphid_player_byte_t prev_p2_sensor[PUMP_HID_NUMOFSENSORS] = {};
 
   while (!m_bShutdown) {
     newLS = LightsDriver_Export::GetState();
@@ -92,6 +139,7 @@ void InputHandler_PumpHID::InputThreadMain() {
     // know it hasn't changed.
     if (prevLS != newLS) {
       CreateLightingMessage(newLS);
+      prevLS = newLS;
     }
 
     // hidapi always wants a report id for the device
@@ -100,7 +148,7 @@ void InputHandler_PumpHID::InputThreadMain() {
 
     // push lighting state
     HidResults writeRtn =
-        dev->Write(msg_to_device.raw_buff, PUMPHID_PAYLOADSIZE_TODEV);
+        dev.Write(msg_to_device.raw_buff, PUMPHID_PAYLOADSIZE_TODEV);
 
     if (writeRtn != HidResults::Success) {
       LOG->Warn("PumpHID write fail %d", writeRtn);
@@ -109,7 +157,7 @@ void InputHandler_PumpHID::InputThreadMain() {
 
     // pull input state
     int readRtn =
-        dev->Read(msg_from_device.raw_buff, PUMPHID_PAYLOADSIZE_FROMDEV);
+        dev.Read(msg_from_device.raw_buff, PUMPHID_PAYLOADSIZE_FROMDEV);
 
     if (readRtn != PUMPHID_PAYLOADSIZE_FROMDEV) {
       LOG->Warn("PumpHID read fail %d", readRtn);
@@ -122,13 +170,25 @@ void InputHandler_PumpHID::InputThreadMain() {
     // don't flood the engine with states that are not different.
     if (prevInput != newInput) {
       PushInputStateToEngine(newInput);
-
-      // debugging pay no attention
-      // LOG->Info("%d | %08x", readRtn, newInput);
+      prevInput = newInput;
     }
 
-    prevLS = newLS;
-    prevInput = newInput;
+    // we have to separately compare the sensor states in the event the whole
+    // panel is being pressed, but the sensors in them have swapped.
+    // we can't rely on PumpHIDToLocalState changes to fire off this event since
+    // that decimates the sensor information into a button state.
+    for (int i = 0; i < PUMP_HID_NUMOFSENSORS; i++) {
+      if (msg_from_device.p1_sensor[i].raw != prev_p1_sensor[i].raw) {
+        BroadcastFullSensorStateHelper(
+            PLAYER_1, i, msg_from_device.p1_sensor[i]);
+        prev_p1_sensor[i] = msg_from_device.p1_sensor[i];
+      }
+      if (msg_from_device.p2_sensor[i].raw != prev_p2_sensor[i].raw) {
+        BroadcastFullSensorStateHelper(
+            PLAYER_2, i, msg_from_device.p2_sensor[i]);
+        prev_p2_sensor[i] = msg_from_device.p2_sensor[i];
+      }
+    }
   }
 }
 
@@ -221,14 +281,11 @@ uint32_t InputHandler_PumpHID::PumpHIDToLocalState(
     from_dev.raw_buff[i] = ~from_dev.raw_buff[i];
   }
 
-  // TODO: expose the raw individual sensor values to lua to allow someone to
-  // write a nice test input screen for debugging. See ITG3's theme and oITG for
-  // inspiration.
-  uint8_t p1 = from_dev.p1_sensor0.raw | from_dev.p1_sensor1.raw |
-               from_dev.p1_sensor2.raw | from_dev.p1_sensor3.raw;
+  uint8_t p1 = from_dev.p1_sensor[0].raw | from_dev.p1_sensor[1].raw |
+               from_dev.p1_sensor[2].raw | from_dev.p1_sensor[3].raw;
 
-  uint8_t p2 = from_dev.p2_sensor0.raw | from_dev.p2_sensor1.raw |
-               from_dev.p2_sensor2.raw | from_dev.p2_sensor3.raw;
+  uint8_t p2 = from_dev.p2_sensor[0].raw | from_dev.p2_sensor[1].raw |
+               from_dev.p2_sensor[2].raw | from_dev.p2_sensor[3].raw;
 
   // newer firmwares of the pump hid are WEIRD about this, so just pull out the
   // bits we want test, coin, service, and clear from p1, and just coin from p2.

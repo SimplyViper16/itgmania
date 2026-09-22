@@ -1075,6 +1075,7 @@
 			<Function name='GetMouseWheel'/>
 			<Function name='GetMouseX'/>
 			<Function name='GetMouseY'/>
+			<Function name='GetFullSensorState'/>
 		</Class>
 		<Class base='BitmapText' name='InputList'>
 		</Class>
@@ -1633,6 +1634,8 @@
 		</Class>
 		<Class name='RageInput'>
 			<Function name='GetDescriptions'/>
+			<Function name='StartSensorTest'/>
+			<Function name='StopSensorTest'/>
 		</Class>
 		<Class name='RageQuadratic'>
 			<Function name='evaluate'/>
@@ -2693,6 +2696,27 @@
 			<EnumValue name='&apos;OptEffect_ApplySong&apos;' value='5'/>
 			<EnumValue name='&apos;OptEffect_ApplyAspectRatio&apos;' value='6'/>
 		</Enum>
+		<Enum name='PadPanel'>
+			<EnumValue name='&apos;PadPanel_UpLeft&apos;' value='0'/>
+			<EnumValue name='&apos;PadPanel_Up&apos;' value='1'/>
+			<EnumValue name='&apos;PadPanel_UpRight&apos;' value='2'/>
+			<EnumValue name='&apos;PadPanel_Left&apos;' value='3'/>
+			<EnumValue name='&apos;PadPanel_Center&apos;' value='4'/>
+			<EnumValue name='&apos;PadPanel_Right&apos;' value='5'/>
+			<EnumValue name='&apos;PadPanel_DownLeft&apos;' value='6'/>
+			<EnumValue name='&apos;PadPanel_Down&apos;' value='7'/>
+			<EnumValue name='&apos;PadPanel_DownRight&apos;' value='8'/>
+		</Enum>
+		<Enum name='PadSensor'>
+			<EnumValue name='&apos;PadSensor_TopCenter&apos;' value='0'/>
+			<EnumValue name='&apos;PadSensor_TopLeft&apos;' value='1'/>
+			<EnumValue name='&apos;PadSensor_TopRight&apos;' value='2'/>
+			<EnumValue name='&apos;PadSensor_RightCenter&apos;' value='3'/>
+			<EnumValue name='&apos;PadSensor_BottomCenter&apos;' value='4'/>
+			<EnumValue name='&apos;PadSensor_BottomLeft&apos;' value='5'/>
+			<EnumValue name='&apos;PadSensor_BottomRight&apos;' value='6'/>
+			<EnumValue name='&apos;PadSensor_LeftCenter&apos;' value='7'/>
+		</Enum>
 		<Enum name='PaneCategory'>
 			<EnumValue name='&apos;PaneCategory_NumSteps&apos;' value='0'/>
 			<EnumValue name='&apos;PaneCategory_Jumps&apos;' value='1'/>
@@ -2821,26 +2845,33 @@
 			<EnumValue name='&apos;SortOrder_Title&apos;' value='3'/>
 			<EnumValue name='&apos;SortOrder_BPM&apos;' value='4'/>
 			<EnumValue name='&apos;SortOrder_Popularity&apos;' value='5'/>
-			<EnumValue name='&apos;SortOrder_TopGrades&apos;' value='6'/>
-			<EnumValue name='&apos;SortOrder_Artist&apos;' value='7'/>
-			<EnumValue name='&apos;SortOrder_Genre&apos;' value='8'/>
-			<EnumValue name='&apos;SortOrder_BeginnerMeter&apos;' value='9'/>
-			<EnumValue name='&apos;SortOrder_EasyMeter&apos;' value='10'/>
-			<EnumValue name='&apos;SortOrder_MediumMeter&apos;' value='11'/>
-			<EnumValue name='&apos;SortOrder_HardMeter&apos;' value='12'/>
-			<EnumValue name='&apos;SortOrder_ChallengeMeter&apos;' value='13'/>
-			<EnumValue name='&apos;SortOrder_DoubleEasyMeter&apos;' value='14'/>
-			<EnumValue name='&apos;SortOrder_DoubleMediumMeter&apos;' value='15'/>
-			<EnumValue name='&apos;SortOrder_DoubleHardMeter&apos;' value='16'/>
-			<EnumValue name='&apos;SortOrder_DoubleChallengeMeter&apos;' value='17'/>
-			<EnumValue name='&apos;SortOrder_ModeMenu&apos;' value='18'/>
-			<EnumValue name='&apos;SortOrder_AllCourses&apos;' value='19'/>
-			<EnumValue name='&apos;SortOrder_Nonstop&apos;' value='20'/>
-			<EnumValue name='&apos;SortOrder_Oni&apos;' value='21'/>
-			<EnumValue name='&apos;SortOrder_Endless&apos;' value='22'/>
-			<EnumValue name='&apos;SortOrder_Length&apos;' value='23'/>
-			<EnumValue name='&apos;SortOrder_Roulette&apos;' value='24'/>
-			<EnumValue name='&apos;SortOrder_Recent&apos;' value='25'/>
+			<EnumValue name='&apos;SortOrder_PopularityP1&apos;' value='6'/>
+			<EnumValue name='&apos;SortOrder_PopularityP2&apos;' value='7'/>
+			<EnumValue name='&apos;SortOrder_TopGrades&apos;' value='8'/>
+			<EnumValue name='&apos;SortOrder_TopP1Grades&apos;' value='9'/>
+			<EnumValue name='&apos;SortOrder_TopP2Grades&apos;' value='10'/>
+			<EnumValue name='&apos;SortOrder_Recent&apos;' value='11'/>
+			<EnumValue name='&apos;SortOrder_RecentP1&apos;' value='12'/>
+			<EnumValue name='&apos;SortOrder_RecentP2&apos;' value='13'/>
+			<EnumValue name='&apos;SortOrder_Artist&apos;' value='14'/>
+			<EnumValue name='&apos;SortOrder_Genre&apos;' value='15'/>
+			<EnumValue name='&apos;SortOrder_Length&apos;' value='16'/>
+			<EnumValue name='&apos;SortOrder_Meter&apos;' value='17'/>
+			<EnumValue name='&apos;SortOrder_BeginnerMeter&apos;' value='18'/>
+			<EnumValue name='&apos;SortOrder_EasyMeter&apos;' value='19'/>
+			<EnumValue name='&apos;SortOrder_MediumMeter&apos;' value='20'/>
+			<EnumValue name='&apos;SortOrder_HardMeter&apos;' value='21'/>
+			<EnumValue name='&apos;SortOrder_ChallengeMeter&apos;' value='22'/>
+			<EnumValue name='&apos;SortOrder_DoubleEasyMeter&apos;' value='23'/>
+			<EnumValue name='&apos;SortOrder_DoubleMediumMeter&apos;' value='24'/>
+			<EnumValue name='&apos;SortOrder_DoubleHardMeter&apos;' value='25'/>
+			<EnumValue name='&apos;SortOrder_DoubleChallengeMeter&apos;' value='26'/>
+			<EnumValue name='&apos;SortOrder_ModeMenu&apos;' value='27'/>
+			<EnumValue name='&apos;SortOrder_AllCourses&apos;' value='28'/>
+			<EnumValue name='&apos;SortOrder_Nonstop&apos;' value='29'/>
+			<EnumValue name='&apos;SortOrder_Oni&apos;' value='30'/>
+			<EnumValue name='&apos;SortOrder_Endless&apos;' value='31'/>
+			<EnumValue name='&apos;SortOrder_Roulette&apos;' value='32'/>
 		</Enum>
 		<Enum name='SoundEffectType'>
 			<EnumValue name='&apos;SoundEffectType_Off&apos;' value='0'/>

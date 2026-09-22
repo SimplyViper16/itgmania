@@ -27,6 +27,7 @@
 
 #include "InputHandler.h"
 #include "LightsManager.h"
+#include "PlayerNumber.h"
 #include "RageInputDevice.h"
 #include "RageThreads.h"
 #include "archutils/Common/HidDevice.h"
@@ -47,6 +48,8 @@
 #define PUMPHID_PID_V2 0x1040
 
 #define PUMPHID_INTERFACE_NUM 0
+
+#define PUMP_HID_NUMOFSENSORS 4
 
 #pragma pack(push, 1)
 
@@ -94,15 +97,8 @@ typedef union {
 
 typedef union {
   struct {
-    pumphid_player_byte_t p1_sensor0;
-    pumphid_player_byte_t p1_sensor1;
-    pumphid_player_byte_t p1_sensor2;
-    pumphid_player_byte_t p1_sensor3;
-
-    pumphid_player_byte_t p2_sensor0;
-    pumphid_player_byte_t p2_sensor1;
-    pumphid_player_byte_t p2_sensor2;
-    pumphid_player_byte_t p2_sensor3;
+    pumphid_player_byte_t p1_sensor[PUMP_HID_NUMOFSENSORS];
+    pumphid_player_byte_t p2_sensor[PUMP_HID_NUMOFSENSORS];
 
     pumphid_cabinet_byte_t cab0;
     pumphid_cabinet_byte_t cab1;
@@ -238,17 +234,26 @@ class InputHandler_PumpHID : public InputHandler {
   std::string GetDeviceSpecificInputString(const DeviceInput& di);
   void GetDevicesAndDescriptions(std::vector<InputDeviceInfo>& vDevicesOut);
 
-  bool IsConnected() { return dev != nullptr && dev->IsConnected(); }
+  bool IsConnected() { return dev.IsConnected(); }
 
  private:
-  HidDevice* dev;
-  static const std::vector<int> devPIDS;
+  // all of the known device pid's that use this communication protocol.
+  inline static const std::vector<int> devPIDS = {
+      PUMPHID_PID_V1, PUMPHID_PID_V2};
+
+  // ensure auto reconnect and blocking reads (since the device wants write/read
+  // cycles properly.)
+  HidDevice dev =
+      HidDevice(PUMPHID_VID, devPIDS, PUMPHID_INTERFACE_NUM, true, false);
 
   pumphid_output_state_t msg_from_device;
   pumphid_input_state_t msg_to_device;
 
   bool m_bShutdown;
   RageThread InputThread;
+
+  void BroadcastFullSensorStateHelper(
+      PlayerNumber pn, uint8_t sensor_index, pumphid_player_byte_t state);
 
   uint32_t PumpHIDToLocalState(pumphid_output_state_t from_dev);
 

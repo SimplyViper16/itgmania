@@ -937,7 +937,18 @@ bool ScreenSelectMusic::Input(const InputEventPlus& input) {
 }
 
 bool ScreenSelectMusic::DetectCodes(const InputEventPlus& input) {
-  if (CodeDetector::EnteredPrevSteps(input.GameI.controller) &&
+  // We have a fallback close folder command that's a prefix of the prev/next
+  // steps command, so make sure to handle close folder command first.
+  if (CodeDetector::EnteredCloseFolder(input.GameI.controller)) {
+    if (GAMESTATE->IsAnExtraStageAndSelectionLocked() ||
+        m_MusicWheel.WheelIsLocked() || m_MusicWheel.IsRouletting()) {
+      m_soundLocked.Play(true);
+    } else {
+      m_MusicWheel.CloseOpenSectionOneLevel();
+      AfterMusicChange();
+    }
+  } else if (
+      CodeDetector::EnteredPrevSteps(input.GameI.controller) &&
       !CHANGE_STEPS_WITH_GAME_BUTTONS) {
     if (GAMESTATE->IsAnExtraStageAndSelectionLocked()) {
       m_soundLocked.Play(true);
@@ -1001,14 +1012,6 @@ bool ScreenSelectMusic::DetectCodes(const InputEventPlus& input) {
       m_MusicWheel.SelectSection(sNewGroup);
       m_MusicWheel.SetOpenSection(sNewGroup);
       MESSAGEMAN->Broadcast("PreviousGroup");
-      AfterMusicChange();
-    }
-  } else if (CodeDetector::EnteredCloseFolder(input.GameI.controller)) {
-    if (GAMESTATE->IsAnExtraStageAndSelectionLocked() ||
-        m_MusicWheel.WheelIsLocked() || m_MusicWheel.IsRouletting()) {
-      m_soundLocked.Play(true);
-    } else {
-      m_MusicWheel.CloseOpenSectionOneLevel();
       AfterMusicChange();
     }
   } else {
